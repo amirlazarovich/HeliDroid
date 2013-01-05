@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:orientation="vertical"
+              android:layout_width="fill_parent"
+              android:layout_height="fill_parent"
+              android:id="@+id/layout">
+
+    <FrameLayout
+        android:id="@+id/preview"
+        android:layout_weight="1"
+        android:layout_width="fill_parent"
+        android:layout_height="0dp">
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:id="@+id/btn_take_picture"
+            android:text="Take Picture"
+            android:layout_gravity="center"/>
+
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:id="@+id/btn_play_music"
+            android:text="Music"
+            android:layout_gravity="center"/>
+
+        </LinearLayout>
+</LinearLayout>
