@@ -37,7 +37,7 @@ public class ZepDroidActivity extends Activity implements ADKManager.Callback {
     // Constants
     ///////////////////////////////////////////////
     private static final String TAG = "ZepDroid";
-    private static final String BASE_URI = "http://192.168.1.101:8099";
+    private static final String BASE_URI = "http://192.168.1.155:8099";
     private static final int PERIOD = 10 * 1000;  // repeat every sec.
 
     ///////////////////////////////////////////////
