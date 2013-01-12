@@ -1,4 +1,3 @@
-require(["joystick"], function() {
-    var joystick = new Joystick();
+require(["joystick"], function(joystick) {
     joystick.start();
 });

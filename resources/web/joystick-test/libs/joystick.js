@@ -1,9 +1,9 @@
 /**
- * Joystick handler
+ * Joystick module handler
  *
  * @constructor
  */
-function Joystick() {
+define(function () {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
@@ -30,7 +30,7 @@ function Joystick() {
     ///////// Constructor
     ////////////////////////////////////
     /**
-     * Create a new Joystick handler
+     * Create a new Joystick module handler
      * @private
      */
     (function _Joystick() {
@@ -49,23 +49,6 @@ function Joystick() {
             mCanvas.addEventListener('mousemove', onMouseMove, false);
         }
     })();
-
-    ////////////////////////////////////
-    ///////// Public
-    ////////////////////////////////////
-    /**
-     * Begin tracking mouse and touch movements
-     */
-    this.start = function () {
-        mDrawingIntervalHandler = setInterval(draw, 1000 / FPS);
-    };
-
-    /**
-     * Stop tracking mouse and touch movements
-     */
-    this.stop = function () {
-        clearInterval(mDrawingIntervalHandler);
-    };
 
     ////////////////////////////////////
     ///////// Private
@@ -215,4 +198,23 @@ function Joystick() {
     function onMouseUp(event) {
         mIsTrackingMouseMovement = false;
     }
-}
+
+    ////////////////////////////////////
+    ///////// Public
+    ////////////////////////////////////
+    return {
+        /**
+         * Begin tracking mouse and touch movements
+         */
+        start: function() {
+            mDrawingIntervalHandler = setInterval(draw, 1000 / FPS);
+        },
+
+        /**
+         * Stop tracking mouse and touch movements
+         */
+        stop: function() {
+            clearInterval(mDrawingIntervalHandler);
+        }
+    };
+});
