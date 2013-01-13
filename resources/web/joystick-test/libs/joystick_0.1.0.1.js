@@ -3,16 +3,19 @@
  *
  * @constructor
  */
-define(function () {
+define(['socket.io'], function (io) {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
     var FPS = 30;
+    var MAX_RANGE = 100;
+    var DEBUG = true;
 
     ////////////////////////////////////
     ///////// Members
     ////////////////////////////////////
     // private-members
+    var mSocket;
     var mCanvas;
     var mContext2D;
     var mContainer;
@@ -26,6 +29,11 @@ define(function () {
 
     var mDrawingIntervalHandler;
 
+    var mPower;
+    var mOrientation;
+    var mTiltUpDown;
+    var mTiltLeftRight;
+
     // member-flags
     var mIsTouchable;
     var mIsTrackingMouseMovement;
@@ -35,11 +43,10 @@ define(function () {
     ////////////////////////////////////
     /**
      * Create a new Joystick module handler
-     * @private
      */
     (function _Joystick() {
         setupCanvas();
-
+        mSocket = io.connect("/");
         mIsTouchable = 'createTouch' in document;
         if (mIsTouchable) {
             mCanvas.addEventListener('touchstart', onTouchStart, false);
@@ -59,8 +66,6 @@ define(function () {
     ////////////////////////////////////
     /**
      * Draw our joystick(s)
-     *
-     * @private
      */
     function draw() {
         mContext2D.clearRect(0, 0, mCanvas.width, mCanvas.height);
@@ -88,6 +93,38 @@ define(function () {
             mContext2D.strokeStyle = "white";
             mContext2D.arc(mMouseX, mMouseY, 40, 0, Math.PI * 2, true);
             mContext2D.stroke();
+        }
+    }
+
+    /**
+     * Emit calculated value to connected socket
+     *
+     * @param event
+     * @param obj
+     */
+    function sendToDevice(event, obj) {
+        mSocket.emit(event, obj);
+        if (DEBUG) {
+            console.log(event + ": " + obj);
+        }
+    }
+
+    /**
+     * Emit calculated values to connected socket
+     */
+    function sendAllToDevice() {
+        mSocket.emit("power", mPower);
+        mSocket.emit("orientation", mOrientation);
+        mSocket.emit("tilt_up_down", mTiltUpDown);
+        mSocket.emit("tilt_left_right", mTiltLeftRight);
+
+        if (DEBUG) {
+            console.log("-------- Emitting --------");
+            console.log("power: " + mPower);
+            console.log("orientation: " + mOrientation);
+            console.log("tilt_up_down: " + mTiltUpDown);
+            console.log("tilt_left_right: " + mTiltLeftRight);
+            console.log("---------------------------");
         }
     }
 
@@ -120,7 +157,6 @@ define(function () {
      * Reset our canvas to start fresh
      *
      * @param event
-     * @private
      */
     function resetCanvas(event) {
         // resize the canvas - but remember - this clears the canvas too.
@@ -133,8 +169,6 @@ define(function () {
 
     /**
      * Prepare our canvas
-     *
-     * @private
      */
     function setupCanvas() {
         mCanvas = document.createElement('canvas');
@@ -155,7 +189,6 @@ define(function () {
      * Handle on touch start event
      *
      * @param event
-     * @private
      */
     function onTouchStart(event) {
         parseTouchEvent(event.touches, true);
@@ -165,7 +198,6 @@ define(function () {
      * Handle on touch move event
      *
      * @param event
-     * @private
      */
     function onTouchMove(event) {
         // Prevent the browser from doing its default thing (scroll, zoom)
@@ -177,11 +209,12 @@ define(function () {
      * Handle on touch end event
      *
      * @param event
-     * @private
      */
     function onTouchEnd(event) {
         mLeftTouch = null;
+        mLeftTouchStartPos = null;
         mRightTouch = null;
+        mRightTouchStartPos = null;
     }
 
     /**
@@ -189,35 +222,89 @@ define(function () {
      *
      * @param touches An array of touch events
      * @param defineStartPosition Whether to keep reference of starting positions
-     * @private
      */
     function parseTouchEvent(touches, defineStartPosition) {
-        mRightTouch = null;
-        mLeftTouch = null;
         var halfWindowWidth = window.innerWidth / 2;
         for (var i = 0, max = touches.length; i < max; i++) {
             var touch = touches[i];
             if (touch.clientX > halfWindowWidth) {
                 // right side
+                if (isOutOfRange(touch, mRightTouchStartPos)) {
+                    continue;
+                }
+
                 mRightTouch = touch;
                 if (defineStartPosition) {
                     mRightTouchStartPos = touch;
                 }
+
+                mTiltUpDown = calculateYAxis(mRightTouch, mRightTouchStartPos);
+                mTiltLeftRight = calculateXAxis(mRightTouch, mRightTouchStartPos);
+                sendToDevice("tilt_up_down", mTiltUpDown);
+                sendToDevice("tilt_left_right", mTiltLeftRight);
             } else {
                 // left side
+                if (isOutOfRange(touch, mLeftTouchStartPos)) {
+                    continue;
+                }
+
                 mLeftTouch = touch;
                 if (defineStartPosition) {
                     mLeftTouchStartPos = touch;
                 }
+
+                mPower = calculateYAxis(mLeftTouch, mLeftTouchStartPos);
+                mOrientation = calculateXAxis(mLeftTouch, mLeftTouchStartPos);
+                sendToDevice("power", mPower);
+                sendToDevice("orientation", mOrientation);
             }
         }
+    }
+
+    /**
+     * Calculate values over the Y axis
+     *
+     * @param touch
+     * @param touchStartPos
+     * @return {Number}
+     */
+    function calculateYAxis(touch, touchStartPos) {
+        return touchStartPos.clientY - touch.clientY;
+    }
+
+    /**
+     * Calculate values over the X axis
+     *
+     * @param touch
+     * @param touchStartPos
+     * @return {Number}
+     */
+    function calculateXAxis(touch, touchStartPos) {
+        return touch.clientX - touchStartPos.clientX;
+    }
+
+    /**
+     * Check if reached maximum range
+     *
+     * @param touch
+     * @param touchStartPos
+     * @return {Boolean}
+     */
+    function isOutOfRange(touch, touchStartPos) {
+        if (touch == null || touchStartPos == null) {
+            return false;
+        }
+
+        var x = Math.pow(touch.clientX - touchStartPos.clientX, 2);
+        var y = Math.pow(touch.clientY - touchStartPos.clientY, 2);
+        var value = Math.sqrt(x + y);
+        return (value > MAX_RANGE);
     }
 
     /**
      * Handle on mouse down event
      *
      * @param event
-     * @private
      */
     function onMouseDown(event) {
         mIsTrackingMouseMovement = true;
@@ -229,7 +316,6 @@ define(function () {
      * Handle on mouse move event
      *
      * @param event
-     * @private
      */
     function onMouseMove(event) {
         mMouseX = event.offsetX;
@@ -240,7 +326,6 @@ define(function () {
      * Handle on mouse up event
      *
      * @param event
-     * @private
      */
     function onMouseUp(event) {
         mIsTrackingMouseMovement = false;
