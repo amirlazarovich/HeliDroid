@@ -3,14 +3,21 @@
  *
  * @constructor
  */
-define(['socket.io'], function (io) {
+define(['socket.io', 'simulated_touch_factory'], function (io, touchFactory) {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
-    var FPS = 30;
-    var MAX_RANGE = 100;
     var DEBUG = true;
 
+    var FPS = 30;
+    var MAX_RANGE = 100;
+    var DEFAULT_DURATION_SLOW_STOP = 500;
+
+    var LEFT_JOYSTICK_COLOR = "55f";
+    var RIGHT_JOYSTICK_COLOR = "f55";
+
+    var LEFT_JOYSTICK = 0;
+    var RIGHT_JOYSTICK = 1;
     ////////////////////////////////////
     ///////// Members
     ////////////////////////////////////
@@ -27,6 +34,8 @@ define(['socket.io'], function (io) {
     var mRightTouch;
     var mRightTouchStartPos;
 
+    var mSimulatedTouches = [];
+
     var mDrawingIntervalHandler;
 
     var mPower;
@@ -37,6 +46,7 @@ define(['socket.io'], function (io) {
     // member-flags
     var mIsTouchable;
     var mIsTrackingMouseMovement;
+    var mIsTrackingTouchEvents;
 
     ////////////////////////////////////
     ///////// Constructor
@@ -71,12 +81,28 @@ define(['socket.io'], function (io) {
         mContext2D.clearRect(0, 0, mCanvas.width, mCanvas.height);
 
         if (mIsTouchable) {
-            if (mLeftTouch != null) {
-                drawJoystick(mContext2D, mLeftTouch, mLeftTouchStartPos, "55f");
+            if (mIsTrackingTouchEvents && mLeftTouch != null && mLeftTouchStartPos != null) {
+                drawJoystick(mContext2D, mLeftTouch, mLeftTouchStartPos, LEFT_JOYSTICK_COLOR);
             }
 
-            if (mRightTouch != null) {
-                drawJoystick(mContext2D, mRightTouch, mRightTouchStartPos, "f55");
+            if (mIsTrackingTouchEvents && mRightTouch != null && mRightTouchStartPos != null) {
+                drawJoystick(mContext2D, mRightTouch, mRightTouchStartPos, RIGHT_JOYSTICK_COLOR);
+            }
+
+            // execute simulated touches
+            for (var i = 0, max = mSimulatedTouches.length; i < max; i++) {
+                var simulatedTouch = mSimulatedTouches[i];
+                if (!simulatedTouch.isReady()) {
+                    continue;
+                }
+
+                drawJoystick(mContext2D, simulatedTouch,
+                    {
+                        clientX: simulatedTouch.startX,
+                        clientY: simulatedTouch.startY
+                    }, (simulatedTouch.id == LEFT_JOYSTICK) ? LEFT_JOYSTICK_COLOR : RIGHT_JOYSTICK_COLOR);
+
+                console.log("joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
             }
         } else if (mIsTrackingMouseMovement) {
             mContext2D.beginPath();
@@ -151,6 +177,8 @@ define(['socket.io'], function (io) {
         context2D.strokeStyle = style;
         context2D.arc(touch.clientX, touch.clientY, 40, 0, Math.PI * 2, true);
         context2D.stroke();
+
+        //console.log("joystick-draw: (" + touch.clientX + ", " + touch.clientY + ")");
     }
 
     /**
@@ -191,7 +219,9 @@ define(['socket.io'], function (io) {
      * @param event
      */
     function onTouchStart(event) {
+        cancelSimulatedTouches(mSimulatedTouches);
         parseTouchEvent(event.touches, true);
+        mIsTrackingTouchEvents = true;
     }
 
     /**
@@ -211,10 +241,97 @@ define(['socket.io'], function (io) {
      * @param event
      */
     function onTouchEnd(event) {
+        mIsTrackingTouchEvents = false;
+        initiateSlowStop();
         mLeftTouch = null;
         mLeftTouchStartPos = null;
         mRightTouch = null;
         mRightTouchStartPos = null;
+    }
+
+    /**
+     * Auto animate joystick to its initial position
+     */
+    function initiateSlowStop() {
+        if (mLeftTouch != null) {
+            var leftSimulatedTouch = touchFactory.newSimulatedTouch(LEFT_JOYSTICK, mLeftTouch, mLeftTouchStartPos);
+            mSimulatedTouches.push(leftSimulatedTouch);
+            leftSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function(simulatedTouch) {
+                // remove simulated touch from the array of simulated touches
+                mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
+            });
+            //runLinearEquation(leftSimulatedTouch, DEFAULT_DURATION_SLOW_STOP);
+        }
+
+        if (mRightTouch != null) {
+            var rightSimulatedTouch = touchFactory.newSimulatedTouch(RIGHT_JOYSTICK, mRightTouch, mRightTouchStartPos);
+            mSimulatedTouches.push(rightSimulatedTouch);
+            rightSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function(simulatedTouch) {
+                // remove simulated touch from the array of simulated touches
+                mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
+            });
+            //runLinearEquation(rightSimulatedTouch, DEFAULT_DURATION_SLOW_STOP);
+        }
+    }
+
+//    /**
+//     * Run linear equation while trying to bring the joystick back to its initial position
+//     *
+//     * @param simulatedTouch
+//     * @param duration
+//     */
+//    function runLinearEquation(simulatedTouch, duration) {
+//        var m = (simulatedTouch.startY - simulatedTouch.clientY) / (simulatedTouch.startX - simulatedTouch.clientX);
+//        var varPoint;
+//        var targetPoint;
+//        var isTraversingY = false;
+//        if (m == 'Infinity') {
+//            isTraversingY = true;
+//            varPoint = simulatedTouch.clientY;
+//            targetPoint = simulatedTouch.startY;
+//        } else {
+//            var c = simulatedTouch.startY - (m * simulatedTouch.startX);
+//            var varPoint = simulatedTouch.clientX;
+//            var targetPoint = simulatedTouch.startX;
+//        }
+//
+//        console.log("** slow-stop: varX: " + varPoint + ", targetX: " + targetPoint);
+//        var stepSign = (targetPoint > varPoint) ? 1 : -1;
+//        var delay = 1000 / FPS;
+//        var totalFrames = FPS * (duration / 1000);
+//        var range = (targetPoint - varPoint);
+//        var step = range / totalFrames;
+//        console.log("*** slow-stop: step: " + step + ", target values: (" + simulatedTouch.startX + ", " + simulatedTouch.startY + ")");
+//        simulatedTouch.intervalId = setInterval(function () {
+//            varPoint += step;
+//            if (isTraversingY) {
+//                simulatedTouch.clientY = varPoint;
+//            } else {
+//                var varY = m * varPoint + c;
+//                simulatedTouch.clientX = varPoint;
+//                simulatedTouch.clientY = varY;
+//            }
+//
+//            console.log("slow-stop: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
+//            console.log("targetPoint: " + targetPoint + ", varX: " + varPoint + ", stepSign: " + stepSign);
+//            if (((targetPoint - varPoint) * stepSign) <= 0) {
+//                clearInterval(simulatedTouch.intervalId);
+//                // remove simulated touch from the array of simulated touches
+//                mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
+//                return;
+//            }
+//        }, delay);
+//    }
+
+    /**
+     * Cancel all simulated touches
+     *
+     * @param simulatedTouches
+     */
+    function cancelSimulatedTouches(simulatedTouches) {
+        while ((simulatedTouch = simulatedTouches.pop()) != null) {
+            simulatedTouch.cancel();
+        }
     }
 
     /**
@@ -330,6 +447,7 @@ define(['socket.io'], function (io) {
     function onMouseUp(event) {
         mIsTrackingMouseMovement = false;
     }
+
     ////////////////////////////////////
     ///////// Public
     ////////////////////////////////////
@@ -337,14 +455,14 @@ define(['socket.io'], function (io) {
         /**
          * Begin tracking mouse and touch movements
          */
-        start: function() {
+        start:function () {
             mDrawingIntervalHandler = setInterval(draw, 1000 / FPS);
         },
 
         /**
          * Stop tracking mouse and touch movements
          */
-        stop: function() {
+        stop:function () {
             clearInterval(mDrawingIntervalHandler);
         }
     };
