@@ -3,12 +3,10 @@
  *
  * @constructor
  */
-define(['socket.io', 'simulated_touch_factory'], function (io, touchFactory) {
+define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFactory, config) {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
-    var DEBUG = true;
-
     var FPS = 30;
     var MAX_RANGE = 100;
     var DEFAULT_DURATION_SLOW_STOP = 500;
@@ -102,7 +100,9 @@ define(['socket.io', 'simulated_touch_factory'], function (io, touchFactory) {
                         clientY: simulatedTouch.startY
                     }, (simulatedTouch.id == LEFT_JOYSTICK) ? LEFT_JOYSTICK_COLOR : RIGHT_JOYSTICK_COLOR);
 
-                console.log("joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
+                if (config.DEBUG) {
+                    console.log("joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
+                }
             }
         } else if (mIsTrackingMouseMovement) {
             mContext2D.beginPath();
@@ -130,7 +130,7 @@ define(['socket.io', 'simulated_touch_factory'], function (io, touchFactory) {
      */
     function sendToDevice(event, obj) {
         mSocket.emit(event, obj);
-        if (DEBUG) {
+        if (config.DEBUG) {
             console.log(event + ": " + obj);
         }
     }
@@ -144,7 +144,7 @@ define(['socket.io', 'simulated_touch_factory'], function (io, touchFactory) {
         mSocket.emit("tilt_up_down", mTiltUpDown);
         mSocket.emit("tilt_left_right", mTiltLeftRight);
 
-        if (DEBUG) {
+        if (config.DEBUG) {
             console.log("-------- Emitting --------");
             console.log("power: " + mPower);
             console.log("orientation: " + mOrientation);
@@ -260,7 +260,6 @@ define(['socket.io', 'simulated_touch_factory'], function (io, touchFactory) {
                 // remove simulated touch from the array of simulated touches
                 mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
             });
-            //runLinearEquation(leftSimulatedTouch, DEFAULT_DURATION_SLOW_STOP);
         }
 
         if (mRightTouch != null) {
@@ -270,58 +269,8 @@ define(['socket.io', 'simulated_touch_factory'], function (io, touchFactory) {
                 // remove simulated touch from the array of simulated touches
                 mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
             });
-            //runLinearEquation(rightSimulatedTouch, DEFAULT_DURATION_SLOW_STOP);
         }
     }
-
-//    /**
-//     * Run linear equation while trying to bring the joystick back to its initial position
-//     *
-//     * @param simulatedTouch
-//     * @param duration
-//     */
-//    function runLinearEquation(simulatedTouch, duration) {
-//        var m = (simulatedTouch.startY - simulatedTouch.clientY) / (simulatedTouch.startX - simulatedTouch.clientX);
-//        var varPoint;
-//        var targetPoint;
-//        var isTraversingY = false;
-//        if (m == 'Infinity') {
-//            isTraversingY = true;
-//            varPoint = simulatedTouch.clientY;
-//            targetPoint = simulatedTouch.startY;
-//        } else {
-//            var c = simulatedTouch.startY - (m * simulatedTouch.startX);
-//            var varPoint = simulatedTouch.clientX;
-//            var targetPoint = simulatedTouch.startX;
-//        }
-//
-//        console.log("** slow-stop: varX: " + varPoint + ", targetX: " + targetPoint);
-//        var stepSign = (targetPoint > varPoint) ? 1 : -1;
-//        var delay = 1000 / FPS;
-//        var totalFrames = FPS * (duration / 1000);
-//        var range = (targetPoint - varPoint);
-//        var step = range / totalFrames;
-//        console.log("*** slow-stop: step: " + step + ", target values: (" + simulatedTouch.startX + ", " + simulatedTouch.startY + ")");
-//        simulatedTouch.intervalId = setInterval(function () {
-//            varPoint += step;
-//            if (isTraversingY) {
-//                simulatedTouch.clientY = varPoint;
-//            } else {
-//                var varY = m * varPoint + c;
-//                simulatedTouch.clientX = varPoint;
-//                simulatedTouch.clientY = varY;
-//            }
-//
-//            console.log("slow-stop: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
-//            console.log("targetPoint: " + targetPoint + ", varX: " + varPoint + ", stepSign: " + stepSign);
-//            if (((targetPoint - varPoint) * stepSign) <= 0) {
-//                clearInterval(simulatedTouch.intervalId);
-//                // remove simulated touch from the array of simulated touches
-//                mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
-//                return;
-//            }
-//        }, delay);
-//    }
 
     /**
      * Cancel all simulated touches

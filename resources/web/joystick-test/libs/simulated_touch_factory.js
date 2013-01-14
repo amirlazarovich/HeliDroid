@@ -1,7 +1,7 @@
 /**
  * 2D simulated touch factory
  */
-define(function () {
+define(['config'], function (config) {
     return {
         /**
          * Create a new simulated touch point representation in a 2D dimension
@@ -58,14 +58,18 @@ define(function () {
                         targetPoint = this.startX;
                     }
 
-                    console.log("** slow-stop: varX: " + varPoint + ", targetX: " + targetPoint);
+                    if (config.DEBUG) {
+                        console.log("** slow-stop: varX: " + varPoint + ", targetX: " + targetPoint);
+                    }
                     var stepSign = (targetPoint > varPoint) ? 1 : -1;
                     var delay = 1000 / fps;
                     var totalFrames = fps * (duration / 1000);
                     var range = (targetPoint - varPoint);
                     var step = range / totalFrames;
                     var me = this;
-                    console.log("*** slow-stop: step: " + step + ", target values: (" + this.startX + ", " + this.startY + ")");
+                    if (config.DEBUG) {
+                        console.log("*** slow-stop: step: " + step + ", target values: (" + this.startX + ", " + this.startY + ")");
+                    }
                     this.intervalId = setInterval(function () {
                         varPoint += step;
                         if (isTraversingY) {
@@ -76,8 +80,11 @@ define(function () {
                             me.clientY = varY;
                         }
 
-                        console.log("slow-stop: (" + me.clientX + ", " + me.clientY + ")");
-                        console.log("targetPoint: " + targetPoint + ", varX: " + varPoint + ", stepSign: " + stepSign);
+                        if (config.DEBUG) {
+                            console.log("slow-stop: (" + me.clientX + ", " + me.clientY + ")");
+                            console.log("targetPoint: " + targetPoint + ", varX: " + varPoint + ", stepSign: " + stepSign);
+                        }
+
                         if (((targetPoint - varPoint) * stepSign) <= 0) {
                             clearInterval(me.intervalId);
                             callback(this);
