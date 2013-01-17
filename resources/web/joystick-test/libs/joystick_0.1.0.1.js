@@ -25,8 +25,11 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
     var mCanvas;
     var mContext2D;
     var mContainer;
+
     var mMouseX;
+    var mMouseStartPosX;
     var mMouseY;
+    var mMouseStartPosY;
 
     var mLeftTouch;
     var mLeftTouchStartPos;
@@ -104,20 +107,15 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
                 log.d(TAG, "joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
             }
         } else if (mIsTrackingMouseMovement) {
-            mContext2D.beginPath();
-            mContext2D.strokeStyle = "white";
-            mContext2D.lineWidth = 6;
-            mContext2D.arc(mouseStartX, mouseStartY, 40, 0, Math.PI * 2, true);
-            mContext2D.stroke();
-            mContext2D.beginPath();
-            mContext2D.strokeStyle = "white";
-            mContext2D.lineWidth = 2;
-            mContext2D.arc(mouseStartX, mouseStartY, 60, 0, Math.PI * 2, true);
-            mContext2D.stroke();
-            mContext2D.beginPath();
-            mContext2D.strokeStyle = "white";
-            mContext2D.arc(mMouseX, mMouseY, 40, 0, Math.PI * 2, true);
-            mContext2D.stroke();
+            drawJoystick(mContext2D,
+                {
+                    clientX:mMouseX,
+                    clientY:mMouseY
+                },
+                {
+                    clientX:mMouseStartPosX,
+                    clientY:mMouseStartPosY
+                }, "white");
         }
     }
 
@@ -438,8 +436,8 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
      */
     function onMouseDown(event) {
         mIsTrackingMouseMovement = true;
-        mouseStartX = event.offsetX;
-        mouseStartY = event.offsetY;
+        mMouseStartPosX = event.offsetX;
+        mMouseStartPosY = event.offsetY;
     }
 
     /**
