@@ -1,7 +1,15 @@
 /**
  * 2D simulated touch factory
  */
-define(['config'], function (config) {
+define(['config', 'log'], function (config, log) {
+    ////////////////////////////////////
+    ///////// Constants
+    ////////////////////////////////////
+    var TAG = "TouchFactory";
+
+    ////////////////////////////////////
+    ///////// Public
+    ////////////////////////////////////
     return {
         /**
          * Create a new simulated touch point representation in a 2D dimension
@@ -26,7 +34,7 @@ define(['config'], function (config) {
                  * @return {Boolean}
                  */
                 isReady:function () {
-                    return this.clientX != null && this.clientY != null;
+                    return this.clientX != null && this.clientY != null && this.startX != null && this.startY != null;
                 },
 
                 /**
@@ -58,18 +66,14 @@ define(['config'], function (config) {
                         targetPoint = this.startX;
                     }
 
-                    if (config.DEBUG) {
-                        console.log("** slow-stop: varX: " + varPoint + ", targetX: " + targetPoint);
-                    }
+                    log.d(TAG, "** slow-stop: varX: " + varPoint + ", targetX: " + targetPoint);
                     var stepSign = (targetPoint > varPoint) ? 1 : -1;
                     var delay = 1000 / fps;
                     var totalFrames = fps * (duration / 1000);
                     var range = (targetPoint - varPoint);
                     var step = range / totalFrames;
                     var me = this;
-                    if (config.DEBUG) {
-                        console.log("*** slow-stop: step: " + step + ", target values: (" + this.startX + ", " + this.startY + ")");
-                    }
+                    log.d(TAG, "*** slow-stop: step: " + step + ", target values: (" + this.startX + ", " + this.startY + ")");
                     this.intervalId = setInterval(function () {
                         varPoint += step;
                         if (isTraversingY) {
@@ -80,10 +84,8 @@ define(['config'], function (config) {
                             me.clientY = varY;
                         }
 
-                        if (config.DEBUG) {
-                            console.log("slow-stop: (" + me.clientX + ", " + me.clientY + ")");
-                            console.log("targetPoint: " + targetPoint + ", varX: " + varPoint + ", stepSign: " + stepSign);
-                        }
+                        log.d(TAG, "slow-stop: (" + me.clientX + ", " + me.clientY + ")");
+                        log.d(TAG, "targetPoint: " + targetPoint + ", varX: " + varPoint + ", stepSign: " + stepSign);
 
                         if (((targetPoint - varPoint) * stepSign) <= 0) {
                             clearInterval(me.intervalId);

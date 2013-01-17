@@ -3,16 +3,17 @@
  *
  * @constructor
  */
-define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFactory, config) {
+define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, touchFactory, config, log) {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
+    var TAG = "Joystick";
     var FPS = 30;
     var MAX_RANGE = 100;
-    var DEFAULT_DURATION_SLOW_STOP = 500;
+    var DEFAULT_DURATION_SLOW_STOP = 250;
 
-    var LEFT_JOYSTICK_COLOR = "55f";
-    var RIGHT_JOYSTICK_COLOR = "f55";
+    var LEFT_JOYSTICK_COLOR = "#5555ff";
+    var RIGHT_JOYSTICK_COLOR = "#ff5555";
 
     var LEFT_JOYSTICK = 0;
     var RIGHT_JOYSTICK = 1;
@@ -96,13 +97,11 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
 
                 drawJoystick(mContext2D, simulatedTouch,
                     {
-                        clientX: simulatedTouch.startX,
-                        clientY: simulatedTouch.startY
+                        clientX:simulatedTouch.startX,
+                        clientY:simulatedTouch.startY
                     }, (simulatedTouch.id == LEFT_JOYSTICK) ? LEFT_JOYSTICK_COLOR : RIGHT_JOYSTICK_COLOR);
 
-                if (config.DEBUG) {
-                    console.log("joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
-                }
+                log.d(TAG, "joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
             }
         } else if (mIsTrackingMouseMovement) {
             mContext2D.beginPath();
@@ -125,60 +124,98 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
     /**
      * Emit calculated value to connected socket
      *
-     * @param event
-     * @param obj
+     * @param {String} event
+     * @param {Object} obj
      */
     function sendToDevice(event, obj) {
         mSocket.emit(event, obj);
-        if (config.DEBUG) {
-            console.log(event + ": " + obj);
-        }
-    }
-
-    /**
-     * Emit calculated values to connected socket
-     */
-    function sendAllToDevice() {
-        mSocket.emit("power", mPower);
-        mSocket.emit("orientation", mOrientation);
-        mSocket.emit("tilt_up_down", mTiltUpDown);
-        mSocket.emit("tilt_left_right", mTiltLeftRight);
-
-        if (config.DEBUG) {
-            console.log("-------- Emitting --------");
-            console.log("power: " + mPower);
-            console.log("orientation: " + mOrientation);
-            console.log("tilt_up_down: " + mTiltUpDown);
-            console.log("tilt_left_right: " + mTiltLeftRight);
-            console.log("---------------------------");
-        }
+        log.d(TAG, event + ": " + obj);
     }
 
     /**
      * Draw the joystick on <code>context2D</code>
      *
-     * @param context2D
+     * @param {CanvasRenderingContext2D} context2D
      * @param touch
      * @param touchStartPos
      * @param style
      */
     function drawJoystick(context2D, touch, touchStartPos, style) {
+        // Draw: joystick base - outer circle
         context2D.beginPath();
         context2D.strokeStyle = style;
-        context2D.lineWidth = 6;
-        context2D.arc(touchStartPos.clientX, touchStartPos.clientY, 40, 0, Math.PI * 2, true);
-        context2D.stroke();
-        context2D.beginPath();
-        context2D.strokeStyle = style;
+        context2D.globalAlpha = 1;
         context2D.lineWidth = 2;
         context2D.arc(touchStartPos.clientX, touchStartPos.clientY, 60, 0, Math.PI * 2, true);
         context2D.stroke();
+
+        // Draw: joystick base - inner circle
+        var R = 40;
         context2D.beginPath();
         context2D.strokeStyle = style;
-        context2D.arc(touch.clientX, touch.clientY, 40, 0, Math.PI * 2, true);
+        context2D.lineWidth = 6;
+        context2D.arc(touchStartPos.clientX, touchStartPos.clientY, R, 0, Math.PI * 2, true);
         context2D.stroke();
 
-        //console.log("joystick-draw: (" + touch.clientX + ", " + touch.clientY + ")");
+        // Draw: joystick handle
+        // calculate joystick handle radius and alpha channel according to touch-move distance
+        var distance = getDistance(touch, touchStartPos);
+        var r = R - (distance / 8);
+        var alpha = distance / MAX_RANGE;
+        context2D.beginPath();
+        context2D.strokeStyle = style;
+        context2D.fillStyle = style;
+        context2D.globalAlpha = alpha;
+        context2D.lineWidth = 2;
+        context2D.arc(touch.clientX, touch.clientY, r, 0, Math.PI * 2, true);
+        context2D.stroke();
+        context2D.fill();
+
+        // draw the joystick handle connecting lines
+        context2D.beginPath();
+        context2D.strokeStyle = style;
+        context2D.lineWidth = 2;
+        context2D.lineCap = "round";
+        context2D.moveTo(touchStartPos.clientX, touchStartPos.clientY - R);
+        context2D.lineTo(touch.clientX, touch.clientY - r);
+        context2D.moveTo(touchStartPos.clientX, touchStartPos.clientY + R);
+        context2D.lineTo(touch.clientX, touch.clientY + r);
+        context2D.moveTo(touchStartPos.clientX - R, touchStartPos.clientY);
+        context2D.lineTo(touch.clientX - r, touch.clientY);
+        context2D.moveTo(touchStartPos.clientX + R, touchStartPos.clientY);
+        context2D.lineTo(touch.clientX + r, touch.clientY);
+        context2D.stroke();
+
+//        context2D.beginPath();
+//        context2D.strokeStyle = style;
+//        context2D.lineWidth = 2;
+//        context2D.fillStyle = style;
+//        context2D.lineCap = "round";
+//        context2D.lineJoin = 'round';
+//        context2D.moveTo(touchStartPos.clientX, touchStartPos.clientY - R);
+//        context2D.lineTo(touchStartPos.clientX - R, touchStartPos.clientY);
+//        context2D.lineTo(touch.clientX - r, touch.clientY);
+//        context2D.lineTo(touch.clientX, touch.clientY - r);
+//        context2D.lineTo(touch.clientX + r, touch.clientY);
+//        context2D.lineTo(touchStartPos.clientX + R, touchStartPos.clientY);
+//        context2D.lineTo(touchStartPos.clientX, touchStartPos.clientY - R);
+//        context2D.fill();
+//
+//        context2D.beginPath();
+//        context2D.strokeStyle = style;
+//        context2D.lineWidth = 2;
+//        context2D.fillStyle = style;
+//        context2D.lineCap = "round";
+//        context2D.lineJoin = 'round';
+//        context2D.moveTo(touchStartPos.clientX, touchStartPos.clientY + R);
+//        context2D.lineTo(touchStartPos.clientX + R, touchStartPos.clientY);
+//        context2D.lineTo(touch.clientX + r, touch.clientY);
+//        context2D.lineTo(touch.clientX, touch.clientY + r);
+//        context2D.lineTo(touch.clientX - r, touch.clientY);
+//        context2D.lineTo(touchStartPos.clientX - R, touchStartPos.clientY);
+//        context2D.lineTo(touchStartPos.clientX, touchStartPos.clientY + R);
+//        context2D.fill();
+        //log.d(TAG, "joystick-draw: (" + touch.clientX + ", " + touch.clientY + ")");
     }
 
     /**
@@ -219,9 +256,11 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
      * @param event
      */
     function onTouchStart(event) {
+        log.d(TAG, "onTouchStart: start");
         cancelSimulatedTouches(mSimulatedTouches);
         parseTouchEvent(event.touches, true);
         mIsTrackingTouchEvents = true;
+        log.d(TAG, "onTouchStart: end");
     }
 
     /**
@@ -230,9 +269,16 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
      * @param event
      */
     function onTouchMove(event) {
+        if (!mIsTrackingTouchEvents) {
+            log.d(TAG, "onTouchMove: canceled since already called onTouchEnd");
+            return;
+        }
+
+        log.d(TAG, "onTouchMove: start");
         // Prevent the browser from doing its default thing (scroll, zoom)
         event.preventDefault();
         parseTouchEvent(event.touches, false);
+        log.d(TAG, "onTouchMove: end");
     }
 
     /**
@@ -241,12 +287,14 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
      * @param event
      */
     function onTouchEnd(event) {
+        log.d(TAG, "onTouchEnd: start");
         mIsTrackingTouchEvents = false;
         initiateSlowStop();
         mLeftTouch = null;
         mLeftTouchStartPos = null;
         mRightTouch = null;
         mRightTouchStartPos = null;
+        log.d(TAG, "onTouchEnd: end");
     }
 
     /**
@@ -256,7 +304,7 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
         if (mLeftTouch != null) {
             var leftSimulatedTouch = touchFactory.newSimulatedTouch(LEFT_JOYSTICK, mLeftTouch, mLeftTouchStartPos);
             mSimulatedTouches.push(leftSimulatedTouch);
-            leftSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function(simulatedTouch) {
+            leftSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function (simulatedTouch) {
                 // remove simulated touch from the array of simulated touches
                 mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
             });
@@ -265,7 +313,7 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
         if (mRightTouch != null) {
             var rightSimulatedTouch = touchFactory.newSimulatedTouch(RIGHT_JOYSTICK, mRightTouch, mRightTouchStartPos);
             mSimulatedTouches.push(rightSimulatedTouch);
-            rightSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function(simulatedTouch) {
+            rightSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function (simulatedTouch) {
                 // remove simulated touch from the array of simulated touches
                 mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
             });
@@ -290,41 +338,46 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
      * @param defineStartPosition Whether to keep reference of starting positions
      */
     function parseTouchEvent(touches, defineStartPosition) {
+        log.d(TAG, "parseTouchEvent: start");
         var halfWindowWidth = window.innerWidth / 2;
         for (var i = 0, max = touches.length; i < max; i++) {
             var touch = touches[i];
             if (touch.clientX > halfWindowWidth) {
                 // right side
-                if (isOutOfRange(touch, mRightTouchStartPos)) {
-                    continue;
-                }
-
-                mRightTouch = touch;
                 if (defineStartPosition) {
                     mRightTouchStartPos = touch;
                 }
 
+                if (isOutOfRange(touch, mRightTouchStartPos) || mRightTouchStartPos == null) {
+                    continue;
+                }
+
+                log.d(TAG, "parseTouchEvent: calculating right");
+                mRightTouch = touch;
                 mTiltUpDown = calculateYAxis(mRightTouch, mRightTouchStartPos);
                 mTiltLeftRight = calculateXAxis(mRightTouch, mRightTouchStartPos);
                 sendToDevice("tilt_up_down", mTiltUpDown);
                 sendToDevice("tilt_left_right", mTiltLeftRight);
             } else {
                 // left side
-                if (isOutOfRange(touch, mLeftTouchStartPos)) {
-                    continue;
-                }
-
-                mLeftTouch = touch;
                 if (defineStartPosition) {
                     mLeftTouchStartPos = touch;
                 }
 
+                if (isOutOfRange(touch, mLeftTouchStartPos) || mLeftTouchStartPos == null) {
+                    continue;
+                }
+
+                log.d(TAG, "parseTouchEvent: calculating left");
+                mLeftTouch = touch;
                 mPower = calculateYAxis(mLeftTouch, mLeftTouchStartPos);
                 mOrientation = calculateXAxis(mLeftTouch, mLeftTouchStartPos);
                 sendToDevice("power", mPower);
                 sendToDevice("orientation", mOrientation);
             }
         }
+
+        log.d(TAG, "parseTouchEvent: end");
     }
 
     /**
@@ -357,14 +410,25 @@ define(['socket.io', 'simulated_touch_factory', 'config'], function (io, touchFa
      * @return {Boolean}
      */
     function isOutOfRange(touch, touchStartPos) {
+        var distance = getDistance(touch, touchStartPos);
+        return (distance > MAX_RANGE);
+    }
+
+    /**
+     * Get the distance between two points
+     *
+     * @param touch
+     * @param touchStartPos
+     * @return {Number}
+     */
+    function getDistance(touch, touchStartPos) {
         if (touch == null || touchStartPos == null) {
-            return false;
+            return 0;
         }
 
         var x = Math.pow(touch.clientX - touchStartPos.clientX, 2);
         var y = Math.pow(touch.clientY - touchStartPos.clientY, 2);
-        var value = Math.sqrt(x + y);
-        return (value > MAX_RANGE);
+        return Math.sqrt(x + y);
     }
 
     /**
