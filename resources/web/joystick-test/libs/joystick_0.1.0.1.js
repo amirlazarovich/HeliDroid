@@ -3,7 +3,7 @@
  *
  * @constructor
  */
-define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, touchFactory, config, log) {
+define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], function (io, touchFactory, config, log) {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
@@ -37,6 +37,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
     var mRightTouchStartPos;
 
     var mSimulatedTouches = [];
+    var mTrackingTouchTypes = [];
 
     var mDrawingIntervalHandler;
 
@@ -48,7 +49,6 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
     // member-flags
     var mIsTouchable;
     var mIsTrackingMouseMovement;
-    var mIsTrackingTouchEvents;
 
     ////////////////////////////////////
     ///////// Constructor
@@ -83,11 +83,11 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
         mContext2D.clearRect(0, 0, mCanvas.width, mCanvas.height);
 
         if (mIsTouchable) {
-            if (mIsTrackingTouchEvents && mLeftTouch != null && mLeftTouchStartPos != null) {
+            if (mTrackingTouchTypes.contains(LEFT_JOYSTICK) && mLeftTouch != null && mLeftTouchStartPos != null) {
                 drawJoystick(mContext2D, mLeftTouch, mLeftTouchStartPos, LEFT_JOYSTICK_COLOR);
             }
 
-            if (mIsTrackingTouchEvents && mRightTouch != null && mRightTouchStartPos != null) {
+            if (mTrackingTouchTypes.contains(RIGHT_JOYSTICK) && mRightTouch != null && mRightTouchStartPos != null) {
                 drawJoystick(mContext2D, mRightTouch, mRightTouchStartPos, RIGHT_JOYSTICK_COLOR);
             }
 
@@ -256,8 +256,9 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
     function onTouchStart(event) {
         log.d(TAG, "onTouchStart: start");
         cancelSimulatedTouches(mSimulatedTouches);
-        parseTouchEvent(event.touches, true);
-        mIsTrackingTouchEvents = true;
+        var touchTypes = parseTouchEvent(event.touches, true);
+        // append only unique touch types
+        mTrackingTouchTypes = mTrackingTouchTypes.concat(touchTypes).unique();
         log.d(TAG, "onTouchStart: end");
     }
 
@@ -267,11 +268,6 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
      * @param event
      */
     function onTouchMove(event) {
-        if (!mIsTrackingTouchEvents) {
-            log.d(TAG, "onTouchMove: canceled since already called onTouchEnd");
-            return;
-        }
-
         log.d(TAG, "onTouchMove: start");
         // Prevent the browser from doing its default thing (scroll, zoom)
         event.preventDefault();
@@ -286,35 +282,68 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
      */
     function onTouchEnd(event) {
         log.d(TAG, "onTouchEnd: start");
-        mIsTrackingTouchEvents = false;
-        initiateSlowStop();
-        mLeftTouch = null;
-        mLeftTouchStartPos = null;
-        mRightTouch = null;
-        mRightTouchStartPos = null;
+        var activeTouchTypes = getTouchTypes(event.touches);
+
+        // find which touch event just ended
+        var endedTouchTypes = mTrackingTouchTypes.filter(function(n) {
+            return !activeTouchTypes.contains(n);
+        });
+
+        // update which touch types we're tracking
+        mTrackingTouchTypes = activeTouchTypes;
+        initiateSlowStop(endedTouchTypes);
         log.d(TAG, "onTouchEnd: end");
     }
 
     /**
-     * Auto animate joystick to its initial position
+     * Get touch types
+     *
+     * @param touches
+     * @return {Array}
      */
-    function initiateSlowStop() {
-        if (mLeftTouch != null) {
+    function getTouchTypes(touches) {
+        var touchTypes = [];
+        var halfWindowWidth = window.innerWidth / 2;
+        for (var i = 0, max = touches.length; i < max; i++) {
+            var touch = touches[i];
+            if (touch.clientX > halfWindowWidth) {
+                touchTypes.push(RIGHT_JOYSTICK);
+            } else {
+                touchTypes.push(LEFT_JOYSTICK);
+            }
+        }
+
+        return touchTypes;
+    }
+
+    /**
+     * Auto animate joystick to its initial position
+     *
+     * @param {Array} touchTypes
+     */
+    function initiateSlowStop(touchTypes) {
+        if (mLeftTouch != null && touchTypes.contains(LEFT_JOYSTICK)) {
             var leftSimulatedTouch = touchFactory.newSimulatedTouch(LEFT_JOYSTICK, mLeftTouch, mLeftTouchStartPos);
             mSimulatedTouches.push(leftSimulatedTouch);
             leftSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function (simulatedTouch) {
                 // remove simulated touch from the array of simulated touches
                 mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
             });
+
+            mLeftTouch = null;
+            mLeftTouchStartPos = null;
         }
 
-        if (mRightTouch != null) {
+        if (mRightTouch != null && touchTypes.contains(RIGHT_JOYSTICK)) {
             var rightSimulatedTouch = touchFactory.newSimulatedTouch(RIGHT_JOYSTICK, mRightTouch, mRightTouchStartPos);
             mSimulatedTouches.push(rightSimulatedTouch);
             rightSimulatedTouch.run(FPS, DEFAULT_DURATION_SLOW_STOP, function (simulatedTouch) {
                 // remove simulated touch from the array of simulated touches
                 mSimulatedTouches.splice(mSimulatedTouches.indexOf(simulatedTouch), 1);
             });
+
+            mRightTouch = null;
+            mRightTouchStartPos = null;
         }
     }
 
@@ -334,15 +363,17 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
      *
      * @param touches An array of touch events
      * @param defineStartPosition Whether to keep reference of starting positions
+     * @return {Array} array of touch types
      */
     function parseTouchEvent(touches, defineStartPosition) {
         log.d(TAG, "parseTouchEvent: start");
+        var touchTypes = [];
         var halfWindowWidth = window.innerWidth / 2;
         for (var i = 0, max = touches.length; i < max; i++) {
             var touch = touches[i];
             if (touch.clientX > halfWindowWidth) {
                 // right side
-                if (defineStartPosition) {
+                if (defineStartPosition && !mTrackingTouchTypes.contains(RIGHT_JOYSTICK)) {
                     mRightTouchStartPos = touch;
                 }
 
@@ -351,6 +382,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
                 }
 
                 log.d(TAG, "parseTouchEvent: calculating right");
+                touchTypes.push(RIGHT_JOYSTICK);
                 mRightTouch = touch;
                 mTiltUpDown = calculateYAxis(mRightTouch, mRightTouchStartPos);
                 mTiltLeftRight = calculateXAxis(mRightTouch, mRightTouchStartPos);
@@ -358,7 +390,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
                 sendToDevice("tilt_left_right", mTiltLeftRight);
             } else {
                 // left side
-                if (defineStartPosition) {
+                if (defineStartPosition && !mTrackingTouchTypes.contains(LEFT_JOYSTICK)) {
                     mLeftTouchStartPos = touch;
                 }
 
@@ -367,6 +399,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
                 }
 
                 log.d(TAG, "parseTouchEvent: calculating left");
+                touchTypes.push(LEFT_JOYSTICK);
                 mLeftTouch = touch;
                 mPower = calculateYAxis(mLeftTouch, mLeftTouchStartPos);
                 mOrientation = calculateXAxis(mLeftTouch, mLeftTouchStartPos);
@@ -376,6 +409,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log'], function (io, 
         }
 
         log.d(TAG, "parseTouchEvent: end");
+        return touchTypes;
     }
 
     /**
