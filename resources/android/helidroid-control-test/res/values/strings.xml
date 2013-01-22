@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HeliDroid</string>
+    <string name="log_template">## Send: [%1$s] %2$s: %3$s</string>
+    <string name="ack_template">Ack received: %1$b</string>
+</resources>

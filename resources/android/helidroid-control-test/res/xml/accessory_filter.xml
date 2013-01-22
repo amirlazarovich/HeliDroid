@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+    <usb-accessory model="HeliDroid"
+                   manufacturer="LAbs"
+                   version="1.0"/>
+</resources>

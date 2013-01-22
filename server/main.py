@@ -91,25 +91,27 @@ class EventHandler(tornadio2.SocketConnection):
 		print "connection closed."
 		connections.remove(self)
 
-	def emit_all(self, event, type):
+	def emit_all(self, event, type, value):
+		print "[{event}] {type}: {value}".format(event=event, type=type, value=value)
 		for connection in connections:
 			print "connection: %s" % connection
-			connection.emit("action", event, type)
+			connection.emit(event, type, value)
 	
 	@tornadio2.event
-	def down(self, event):
-		print "down: %s" % event
-		self.emit_all(event, "down")
+	def motors(self, **kwargs):
+		self.emit_all("motors", **kwargs) 
+		
+	@tornadio2.event
+	def rotation(self, **kwargs):
+		self.emit_all("rotation", **kwargs)  		
 
 	@tornadio2.event
-	def up(self, event):
-		print "up: %s" % event
-		self.emit_all(event, "up")
+	def function(self, **kwargs):
+		self.emit_all("function", **kwargs) 
 
 	@tornadio2.event
-	def log(self, s):
-		print "log: %s" % s
-		self.emit_all("got_log", s)
+	def log(self, **kwargs):
+		self.emit_all("log", **kwargs)
 
 class WebApp(object):
 	def __init__(self):
@@ -121,8 +123,7 @@ class WebApp(object):
 			(r"/keepalive", KeepAliveHandler),
 			(r"/log", LogHandler),
 			(r"/gallery", GalleryHandler),
-			(r"/last-image", LastImageHandler),
-
+			(r"/last-image", LastImageHandler)
 		]
 
 		routes.extend(app_router.urls)
@@ -134,4 +135,3 @@ class WebApp(object):
 
 WebApp().start()
 IOLoop.instance().start()
-
