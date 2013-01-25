@@ -10,7 +10,9 @@ import com.helidroid.App;
 import com.helidroid.R;
 import com.helidroid.commons.Event;
 import com.helidroid.commons.EventType;
-import com.helidroid.commons.SLog;
+import com.labs.adk.ADKManager;
+import com.labs.adk.Callback;
+import com.labs.commons.SLog;
 import io.socket.IOAcknowledge;
 import io.socket.IOCallback;
 import io.socket.SocketIO;
@@ -32,7 +34,7 @@ import java.util.TimerTask;
 /**
  * @author Amir Lazarovich
  */
-public class SocketManager implements IOCallback, ADKManager.Callback {
+public class SocketManager implements IOCallback, Callback {
     ///////////////////////////////////////////////
     // Constants
     ///////////////////////////////////////////////
@@ -61,7 +63,6 @@ public class SocketManager implements IOCallback, ADKManager.Callback {
         mTimer = new Timer();
         initPlayer(context);
         initCamera();
-        connectToSocket();
 
         //Timer getPic = new Timer();
         //getPic.schedule(new TakePicTask(), 1000*3);

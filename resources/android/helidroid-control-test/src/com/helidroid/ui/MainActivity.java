@@ -8,10 +8,10 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import com.helidroid.R;
-import com.helidroid.commons.AnimUtils;
-import com.helidroid.commons.SLog;
-import com.helidroid.managers.ADKManager;
 import com.helidroid.managers.SocketManager;
+import com.labs.adk.ADKManager;
+import com.labs.commons.AnimUtils;
+import com.labs.commons.SLog;
 
 /**
  * @author Amir Lazarovich
@@ -50,6 +50,8 @@ public class MainActivity extends Activity implements SocketManager.SocketListen
         mTxtLog = (TextView) findViewById(R.id.txt_log);
         mTxtAck = (TextView) findViewById(R.id.txt_ack);
         mLoading = (ProgressBar) findViewById(R.id.loading);
+
+        mSocketManager.connect();
     }
 
     @Override
@@ -84,7 +86,7 @@ public class MainActivity extends Activity implements SocketManager.SocketListen
     @Override
     public void onSocketFailure() {
         SLog.w(TAG, "onSocketFailure");
-        Toast.makeText(this, "Couldn't connect to socket", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Socket failure", Toast.LENGTH_SHORT).show();
         finish();
     }
 

@@ -55,7 +55,7 @@ class KeepAliveHandler(web.RequestHandler):
 class LogHandler(web.RequestHandler):
 	def get(self, *args, **kw):
 		for connection in connections:
-			connection.emit("got_log", self.get_argument("s"))
+			connection.emit("log", self.get_argument("s"))
 
 		print "log: %s" % self.get_argument("s")
 		

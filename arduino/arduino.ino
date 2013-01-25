@@ -111,17 +111,53 @@ void initMembers() {
  */
 void loop(){
   // Incoming data from Android device.
-  byte msg[1];
+  int bufferSize = 1024;
+  byte msg[bufferSize];
   
   if (acc.isConnected()) 
   {
     // The reading from Android code
-    int len = acc.read(msg, 4, 1);
+    if (DEBUG) Serial.println("reading...");
+    int offset = 0;
+    int numOfBytes = 4;
+    int chunksRead = 0;
+    int len = 0;
+    do {
+      len = acc.read(msg + offset, numOfBytes);  
+      offset += numOfBytes;
+      
+      if (len > 0) {
+        chunksRead++;
+      }
+      
+      if (DEBUG) {
+        Serial.print("read: ");
+        Serial.print(len, DEC);
+        Serial.println(" bytes");        
+      }
+    } while (len > 0 && offset <= bufferSize - numOfBytes);
     
-    if (len > 0) {
-      handleMsgFromDevice(msg);
-      sendAck();
+      
+    if (DEBUG) {
+      Serial.print("chunks read: ");
+      Serial.println(chunksRead, DEC);
     }
+      
+    int chunksOffset = 0;
+    while (chunksRead > 0) {
+      handleMsgFromDevice(msg + chunksOffset);
+      sendAck();
+      
+      chunksOffset += numOfBytes;
+      chunksRead--;
+      
+      if (DEBUG) {
+        Serial.print("chunks offset: ");
+        Serial.print(chunksOffset, DEC);
+        Serial.print(", chunks left: ");
+        Serial.println(chunksRead, DEC);
+      } 
+    } 
   } else if (_lastTimeReconnectedToUsb + TIME_STEP_BETWEEN_USB_RECONNECTIONS < millis()) {
     Serial.println("USB is not connected. Trying to re-connected");
     reconnectToUsb();
@@ -217,6 +253,7 @@ void handleMsgFromDevice(byte* msg) {
       
     case COMMAND_ROTATE:
       if (DEBUG) Serial.println("Controlling Servo rotation angle");
+      
       handleRotation(action, msg + 2);
       break;
     
@@ -240,32 +277,35 @@ void handleMsgFromDevice(byte* msg) {
  */
 void handleRotation(byte action, byte *data) {
   switch (action) {
-    case ACTION_ORIENTATION:
+    case ACTION_ORIENTATION: {
       int8_t value = (int8_t) data[0];
       if (DEBUG) {
-        Serial.print("Event: Orientation");
-        Serial.print(value, DEC);
+        Serial.print("Event: Orientation: ");
+        Serial.println(value, DEC);
       }
       
       break;
+    }
       
-    case ACTION_TILT_UP_DOWN:
+    case ACTION_TILT_UP_DOWN: {
       int8_t value = (int8_t) data[0];
       if (DEBUG) {
-        Serial.print("Event: Tilt Up / Down");
-        Serial.print(value, DEC);
+        Serial.print("Event: Tilt Up / Down: ");
+        Serial.println(value, DEC);
       }
       
       break;
-      
-    case ACTION_TILT_LEFT_RIGHT:
+    }
+    
+    case ACTION_TILT_LEFT_RIGHT: {
       int8_t value = (int8_t) data[0];
       if (DEBUG) {
-        Serial.print("Event: Tilt Left / Right");
-        Serial.print(value, DEC);
+        Serial.print("Event: Tilt Left / Right: ");
+        Serial.println(value, DEC);
       }
       
       break;
+    }
   }  
 }
 
@@ -275,10 +315,15 @@ void handleRotation(byte action, byte *data) {
  * @param action
  * @param data
  */
-void handleActionOnMotor(byte action, byte *data) {
+void handleActionOnMotors(byte action, byte *data) {
   switch (action) {
-      case ACTION_MOTOR_POWER: 
-        int power = (int) data[0];
+      case ACTION_MOTOR_POWER: {
+        int8_t power = (int8_t) data[0];
+        if (DEBUG) {
+           Serial.print("Raw Power value: ");
+           Serial.println(power, DEC); 
+        }
+        
         boolean isReversingMotors;
         if (power < 0) {
           isReversingMotors = true;
@@ -287,10 +332,10 @@ void handleActionOnMotor(byte action, byte *data) {
           isReversingMotors = false;
         }
         
-        int power = translate(power);        
+        power = translate(power);        
 
         if (DEBUG) {
-          Serial.print("Powering ON: direction: ");
+          Serial.print("Power: direction: ");
           if (isReversingMotors) {
             Serial.print("Reverse");
           } else {
@@ -310,6 +355,7 @@ void handleActionOnMotor(byte action, byte *data) {
         // keep last power
         _lastMotorPower = power;
         break;
+      }
     }
 }
 
