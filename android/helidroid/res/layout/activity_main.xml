@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="5dp">
+
+    <TextView
+        android:id="@+id/txt_server_address"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/holo_purple"
+        android:textSize="14sp"/>
+
+    <TextView
+        android:id="@+id/txt_socket_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/txt_server_address"
+        android:textSize="14sp"
+        android:text="@string/socket_disconnected"/>
+
+    <TextView
+        android:id="@+id/txt_adk_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/txt_socket_status"
+        android:textSize="14sp"
+        android:text="@string/adk_disconnected"/>
+
+    <ListView
+        android:id="@+id/list_log"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/txt_adk_status"
+        android:layout_above="@+id/loading"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="10dp"/>
+
+    <ProgressBar
+        android:id="@+id/loading"
+        style="@android:style/Widget.ProgressBar.Small"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentBottom="true"
+        android:visibility="invisible"/>
+
+    <TextView
+        android:id="@+id/txt_ack"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_toRightOf="@id/loading"
+        android:layout_alignParentBottom="true"
+        android:textColor="@android:color/holo_green_light"
+        android:textSize="14sp"/>
+
+</RelativeLayout>

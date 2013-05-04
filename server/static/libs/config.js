@@ -1,0 +1,11 @@
+/**
+ * Configuration file
+ */
+define(function() {
+    ////////////////////////////////////
+    ///////// Public
+    ////////////////////////////////////
+    return {
+        DEBUG: false
+    };
+});

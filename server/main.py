@@ -8,7 +8,7 @@ import random
 import json
 import shelve
 
-APP_PORT = 8099
+APP_PORT = 8888
 SESSION_COOKIE_NAME = "session"
 
 connections = []
@@ -55,7 +55,7 @@ class KeepAliveHandler(web.RequestHandler):
 class LogHandler(web.RequestHandler):
 	def get(self, *args, **kw):
 		for connection in connections:
-			connection.emit("log", self.get_argument("s"))
+			connection.emit("got_log", self.get_argument("s"))
 
 		print "log: %s" % self.get_argument("s")
 		
@@ -91,19 +91,15 @@ class EventHandler(tornadio2.SocketConnection):
 		print "connection closed."
 		connections.remove(self)
 
-	def emit_all(self, event, type, value):
-		print "[{event}] {type}: {value}".format(event=event, type=type, value=value)
+	def emit_all(self, event, type, first_value, second_value):
+		print "[{event}] {type}:: first_value: {first_value}, second_value: {second_value}".format(event=event, type=type, first_value=first_value, second_value=second_value)
 		for connection in connections:
 			print "connection: %s" % connection
-			connection.emit(event, type, value)
-	
+			connection.emit(event, type, first_value, second_value)
+
 	@tornadio2.event
-	def motors(self, **kwargs):
-		self.emit_all("motors", **kwargs) 
-		
-	@tornadio2.event
-	def rotation(self, **kwargs):
-		self.emit_all("rotation", **kwargs)  		
+	def control(self, **kwargs):
+		self.emit_all("control", **kwargs) 	
 
 	@tornadio2.event
 	def function(self, **kwargs):
@@ -135,3 +131,4 @@ class WebApp(object):
 
 WebApp().start()
 IOLoop.instance().start()
+

@@ -4,13 +4,12 @@ package com.helidroid.commons;
 * @author Amir Lazarovich
 */
 public enum EventType {
+    LEFT_STICK("left_stick"),
+    RIGHT_STICK("right_stick"),
     POWER("power"),
-    ORIENTATION("orientation"),
-    TILT_UP_DOWN("tilt_up_down"),
-    TILT_LEFT_RIGHT("tilt_left_right"),
     TAKE_PICTURE("take_picture"),
     TOGGLE_MUSIC("toggle_music"),
-    STAND_BY("stand_by"),
+    KEEP_ALIVE("keep_alive"),
     UNKNOWN("");
 
 

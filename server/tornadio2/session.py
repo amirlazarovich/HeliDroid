@@ -24,6 +24,9 @@
 import urlparse
 import logging
 
+
+logger = logging.getLogger('tornadio2.session')
+
 from tornado.web import HTTPError
 
 from tornadio2 import sessioncontainer, proto, periodic, stats
@@ -100,7 +103,7 @@ class Session(sessioncontainer.SessionBase):
         self.conn = conn(self)
 
         # Call on_open.
-        info = ConnectionInfo(request.remote_ip,
+        self.info = ConnectionInfo(request.remote_ip,
                               request.arguments,
                               request.cookies)
 
@@ -115,7 +118,7 @@ class Session(sessioncontainer.SessionBase):
         # Endpoints
         self.endpoints = dict()
 
-        result = self.conn.on_open(info)
+        result = self.conn.on_open(self.info)
         if result is not None and not result:
             raise HTTPError(401)
 
@@ -145,8 +148,8 @@ class Session(sessioncontainer.SessionBase):
             return False
 
         # If IP address don't match - refuse connection
-        if handler.request.remote_ip != self.remote_ip:
-            logging.error('Attempted to attach to session %s (%s) from different IP (%s)' % (
+        if self.server.settings['verify_remote_ip'] and handler.request.remote_ip != self.remote_ip:
+            logger.error('Attempted to attach to session %s (%s) from different IP (%s)' % (
                           self.session_id,
                           self.remote_ip,
                           handler.request.remote_ip
@@ -183,7 +186,7 @@ class Session(sessioncontainer.SessionBase):
         `pack`
             Encoded socket.io message
         """
-        logging.debug('<<< ' + pack)
+        logger.debug('<<< ' + pack)
 
         # TODO: Possible optimization if there's on-going connection - there's no
         # need to queue messages?
@@ -294,7 +297,7 @@ class Session(sessioncontainer.SessionBase):
         if conn is None:
             conn_class = self.conn.get_endpoint(endpoint)
             if conn_class is None:
-                logging.error('There is no handler for endpoint %s' % endpoint)
+                logger.error('There is no handler for endpoint %s' % endpoint)
                 return
 
             conn = conn_class(self, endpoint)
@@ -302,11 +305,7 @@ class Session(sessioncontainer.SessionBase):
 
         self.send_message(proto.connect(endpoint))
 
-        args = urlparse.parse_qs(urldata.query)
-
-        info = ConnectionInfo(self.remote_ip, args, dict())
-
-        if conn.on_open(info) == False:
+        if conn.on_open(self.info) == False:
             self.disconnect_endpoint(endpoint)
 
     def disconnect_endpoint(self, endpoint):
@@ -316,7 +315,7 @@ class Session(sessioncontainer.SessionBase):
             endpoint name
         """
         if endpoint not in self.endpoints:
-            logging.error('Invalid endpoint for disconnect %s' % endpoint)
+            logger.error('Invalid endpoint for disconnect %s' % endpoint)
             return
 
         conn = self.endpoints[endpoint]
@@ -345,7 +344,7 @@ class Session(sessioncontainer.SessionBase):
             Raw socket.io message to handle
         """
         try:
-            logging.debug('>>> ' + msg)
+            logger.debug('>>> ' + msg)
 
             parts = msg.split(':', 3)
             if len(parts) == 3:
@@ -366,13 +365,13 @@ class Session(sessioncontainer.SessionBase):
                     self.connect_endpoint(msg_endpoint)
                 else:
                     # TODO: Disconnect?
-                    logging.error('Invalid connect without endpoint')
+                    logger.error('Invalid connect without endpoint')
                 return
 
             # All other packets need endpoints
             conn = self.get_connection(msg_endpoint)
             if conn is None:
-                logging.error('Invalid endpoint: %s' % msg_endpoint)
+                logger.error('Invalid endpoint: %s' % msg_endpoint)
                 return
 
             if msg_type == proto.HEARTBEAT:
@@ -427,11 +426,11 @@ class Session(sessioncontainer.SessionBase):
                 conn.deque_ack(int(ack_data[0]), data)
             elif msg_type == proto.ERROR:
                 # TODO: Pass it to handler?
-                logging.error('Incoming error: %s' % msg_data)
+                logger.error('Incoming error: %s' % msg_data)
             elif msg_type == proto.NOOP:
                 pass
         except Exception, ex:
-            logging.exception(ex)
+            logger.exception(ex)
 
             # TODO: Add global exception callback?
 

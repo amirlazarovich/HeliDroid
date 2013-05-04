@@ -10,6 +10,7 @@ import android.widget.ToggleButton;
 import com.helidroid.dashboard.R;
 import com.labs.adk.ADKManager;
 import com.labs.adk.Callback;
+import com.labs.commons.ADK;
 import com.labs.commons.AnimUtils;
 
 /**
@@ -94,7 +95,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Call
 
     @Override
     public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-        sendCommand(ADKManager.COMMAND_MOTORS, ADKManager.ACTION_MOTOR_POWER, new byte[] {toUnsignedByte(progress)});
+        sendCommand(ADK.COMMAND_MOTORS, ADK.ACTION_MOTOR_POWER, new byte[] {toUnsignedByte(progress)});
     }
 
     @Override
@@ -149,9 +150,9 @@ public class MainActivity extends Activity implements View.OnClickListener, Call
         boolean powerOn = power.isChecked();
 
         if (powerOn) {
-            sendCommand(ADKManager.COMMAND_STAND_BY, ADKManager.ACTION_OFF, null);
+            sendCommand(ADK.COMMAND_STAND_BY, ADK.ACTION_OFF, null);
         } else {
-            sendCommand(ADKManager.COMMAND_STAND_BY, ADKManager.ACTION_ON, null);
+            sendCommand(ADK.COMMAND_STAND_BY, ADK.ACTION_ON, null);
         }
     }
 

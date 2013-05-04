@@ -4,9 +4,9 @@ package com.helidroid.commons;
 * @author Amir Lazarovich
 */
 public enum Event {
-    MOTORS("motors"),
-    ROTATION("rotation"),
+    CONTROL("control"),
     FUNCTION("function"),
+    KEEP_ALIVE("keep_alive"),
     UNKNOWN("");
 
     private String mValue;

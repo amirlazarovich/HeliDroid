@@ -6,12 +6,14 @@ import android.hardware.Camera;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.AsyncTask;
+import android.text.TextUtils;
 import com.helidroid.App;
 import com.helidroid.R;
 import com.helidroid.commons.Event;
 import com.helidroid.commons.EventType;
 import com.labs.adk.ADKManager;
 import com.labs.adk.Callback;
+import com.labs.commons.ADK;
 import com.labs.commons.SLog;
 import io.socket.IOAcknowledge;
 import io.socket.IOCallback;
@@ -60,7 +62,6 @@ public class SocketManager implements IOCallback, Callback {
     public SocketManager(Context context, SocketListener listener) {
         mListener = listener;
         mADKManager = new ADKManager(context, this);
-        mTimer = new Timer();
         initPlayer(context);
         initCamera();
 
@@ -101,40 +102,86 @@ public class SocketManager implements IOCallback, Callback {
 
     /**
      * Open connection
+     *
+     * @param serverAddress
      */
-    private void connectToSocket() {
+    private void connectToSocket(String serverAddress) {
         if (mSocket != null && mSocket.isConnected()) {
             SLog.d(TAG, "Already connected to socket");
             return;
         }
 
         try {
-            mSocket = new SocketIO(App.sConsts.SERVER_ADDRESS);
+            mSocket = new SocketIO(serverAddress);
+            mSocket.connect(this);
         } catch (Exception e) {
             SLog.e(TAG, "Couldn't open socket", e);
             mListener.onSocketFailure();
         }
-
-        mSocket.connect(this);
     }
     ///////////////////////////////////////////////
     // Public
     ///////////////////////////////////////////////
 
     /**
+     * Reconnect to all attached devices
+     *
+     * @param serverAddress
+     */
+    public void reconnect(String serverAddress) {
+        disconnect();
+        connect(serverAddress);
+    }
+
+
+    /**
      * Disconnect from all attached devices
      */
     public void disconnect() {
-        mADKManager.disconnect();
-        mSocket.disconnect();
+        if (mADKManager != null) {
+            mADKManager.disconnect();
+        }
+
+        if (mSocket != null) {
+            if (mTimer != null) {
+                mTimer.cancel();
+            }
+
+            mSocket.disconnect();
+        }
     }
 
     /**
      * Connect to attached devices
      */
-    public void connect() {
-        mADKManager.connect();
-        connectToSocket();
+    public void connect(String serverAddress) {
+        if (!TextUtils.isEmpty(serverAddress)) {
+            mADKManager.connect();
+            connectToSocket(serverAddress);
+        } else {
+            SLog.w(TAG, "Couldn't connect to server since no address was given");
+        }
+    }
+
+    /**
+     * Replace server address
+     *
+     * @param serverAddress
+     */
+    public void changeServerAddress(String serverAddress) {
+        if (!mADKManager.isConnected()) {
+            mADKManager.connect();
+        }
+
+        if (mSocket != null) {
+            if (mTimer != null) {
+                mTimer.cancel();
+            }
+
+            mSocket.disconnect();
+        }
+
+        connectToSocket(serverAddress);
     }
 
     ///////////////////////////////////////////////
@@ -144,11 +191,17 @@ public class SocketManager implements IOCallback, Callback {
     @Override
     public void onDisconnect() {
         SLog.d(TAG, "Connection terminated");
+        mListener.onSocketDisconnected();
     }
 
     public void onConnect() {
         SLog.d(TAG, "Connection established");
 
+        if (mTimer != null) {
+            mTimer.cancel();
+        }
+
+        mTimer = new Timer();
         mTimer.scheduleAtFixedRate(new TimerTask() {
             public void run() {
                 SLog.d(TAG, "Trying to keepalive");
@@ -159,9 +212,13 @@ public class SocketManager implements IOCallback, Callback {
                     client.execute(request);
                 } catch (Exception e) {
                     SLog.e(TAG, "Couldn't keepalive", e);
+                    mTimer.cancel();
+                    mListener.onSocketDisconnected();
                 }
             }
         }, 0, PERIOD);
+
+        mListener.onSocketConnected();
     }
 
 
@@ -183,16 +240,28 @@ public class SocketManager implements IOCallback, Callback {
         Event event = Event.getByValue(rawEvent);
         EventType eventType = EventType.getByValue(args[0].toString());
         switch (event) {
-            case MOTORS:
-                onMotorAction(eventType, (Integer) args[1]);
-                break;
+            case CONTROL:
+                if (args.length >= 3) {
+                    Integer firstValue = (Integer) args[1];
+                    Integer secondValue = (Integer) args[2];
+                    if (firstValue != null && secondValue != null) {
+                        SLog.i(TAG, "Control:: [%s], firstValue: %s, secondValue: %s", eventType.getValue(), firstValue, secondValue);
+                        onControlAction(eventType, firstValue, secondValue);
+                    } else {
+                        SLog.w(TAG, "Missing either firstValue or secondValue to process command Control");
+                    }
+                } else {
+                    SLog.w(TAG, "Missing either firstValue or secondValue to process command Control");
+                }
 
-            case ROTATION:
-                onRotationAction(eventType, (Integer) args[1]);
                 break;
 
             case FUNCTION:
                 onFunctionAction(eventType, (args.length > 1) ? args[1] : null);
+                break;
+
+            case KEEP_ALIVE:
+                SLog.d(TAG, "Keeping alive");
                 break;
 
             default:
@@ -206,67 +275,49 @@ public class SocketManager implements IOCallback, Callback {
     }
 
     @Override
-    public void onADKAckReceived(boolean ack) {
+    public void onAckReceived(boolean ack) {
         mListener.onAckReceived(ack);
+    }
+
+    @Override
+    public void onConnected() {
+        mListener.onConnected();
+    }
+
+    @Override
+    public void onDisconnected() {
+        mListener.onDisconnected();
     }
 
     ///////////////////////////////////////////////
     // Private
     ///////////////////////////////////////////////
+
     /**
      * Handle actions directed to the motors
      *
      * @param eventType
-     * @param value
+     * @param firstValue
+     * @param secondValue
      */
-    private void onMotorAction(EventType eventType, Integer value) {
+    private void onControlAction(EventType eventType, Integer firstValue, Integer secondValue) {
         switch (eventType) {
-            case POWER:
-                sendCommand(
-                        ADKManager.COMMAND_MOTORS,
-                        ADKManager.ACTION_MOTOR_POWER,
-                        new byte[]{value.byteValue()});
+            case LEFT_STICK:
+                sendCommand(ADK.COMMAND_CONTROL,
+                        ADK.ACTION_LEFT_STICK,
+                        new byte[]{
+                                firstValue.byteValue(),
+                                secondValue.byteValue()
+                        });
                 break;
 
-            case STAND_BY:
-                sendCommand(
-                        ADKManager.COMMAND_STAND_BY,
-                        value.byteValue(),
-                        null);
-                break;
-
-            default:
-                SLog.w(TAG, "Unknown event type detected: %s", eventType);
-        }
-    }
-
-    /**
-     * Handle actions directed to rotations
-     *
-     * @param eventType
-     * @param value
-     */
-    private void onRotationAction(EventType eventType, Integer value) {
-        switch (eventType) {
-            case ORIENTATION:
-                sendCommand(
-                        ADKManager.COMMAND_ROTATE,
-                        ADKManager.ACTION_ORIENTATION,
-                        new byte[]{value.byteValue()});
-                break;
-
-            case TILT_UP_DOWN:
-                sendCommand(
-                        ADKManager.COMMAND_ROTATE,
-                        ADKManager.ACTION_TILT_UP_DOWN,
-                        new byte[]{value.byteValue()});
-                break;
-
-            case TILT_LEFT_RIGHT:
-                sendCommand(
-                        ADKManager.COMMAND_ROTATE,
-                        ADKManager.ACTION_TILT_LEFT_RIGHT,
-                        new byte[]{value.byteValue()});
+            case RIGHT_STICK:
+                sendCommand(ADK.COMMAND_CONTROL,
+                        ADK.ACTION_RIGHT_STICK,
+                        new byte[]{
+                                firstValue.byteValue(),
+                                secondValue.byteValue()
+                        });
                 break;
 
             default:
@@ -352,7 +403,7 @@ public class SocketManager implements IOCallback, Callback {
             InputStream dataStream = new ByteArrayInputStream(params[0]);
 
             try {
-                SLog.d(TAG, " before sending 0  " + dataStream.available() );
+                SLog.d(TAG, " before sending 0  " + dataStream.available());
             } catch (IOException e) {
                 SLog.e(TAG, "The stream was closed", e);
             }
@@ -362,7 +413,7 @@ public class SocketManager implements IOCallback, Callback {
                 reqEntity = new InputStreamEntity(dataStream, dataStream.available());
                 reqEntity.setContentType("binary/octet-stream");
 
-                SLog.d(TAG, " before sending 1" + reqEntity.getContentLength() );
+                SLog.d(TAG, " before sending 1" + reqEntity.getContentLength());
 
                 //reqEntity.setChunked(true); // Send in multiple parts if needed
                 httppost.setEntity(reqEntity);
@@ -381,14 +432,15 @@ public class SocketManager implements IOCallback, Callback {
      */
     private class TakePicTask extends TimerTask {
 
-        public void run(){
+        public void run() {
             mCamera.takePicture(shutterCallback, rawCallback, jpegCallback);
         }
     }
 
-    public interface SocketListener {
+    public interface SocketListener extends Callback {
         void onSentCommand(byte command, byte action, byte[] data);
-        void onAckReceived(boolean ack);
         void onSocketFailure();
+        void onSocketDisconnected();
+        void onSocketConnected();
     }
 }

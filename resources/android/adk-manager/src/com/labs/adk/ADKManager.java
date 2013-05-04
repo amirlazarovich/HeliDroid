@@ -22,7 +22,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Protocol: [command - 1 byte][action - 1 byte][data - X bytes]
+ * Controls over communication with an ADK device. <br/>
+ * Communication protocol: [command - 1 byte][action - 1 byte][data length - 1 byte][data - X bytes]
  *
  * @author Amir Lazarovich
  */
@@ -32,19 +33,6 @@ public class ADKManager implements Runnable {
     ///////////////////////////////////////////////
     private static final String TAG = "ADKManager";
     private static final String ACTION_USB_PERMISSION = "com.labs.adk.action.USB_PERMISSION";
-
-    // adk-commands
-    public static final byte COMMAND_STAND_BY = 1;
-    public static final byte COMMAND_MOTORS = 2;
-    public static final byte COMMAND_ROTATE = 3;
-
-    // adk-actions
-    public static final byte ACTION_MOTOR_POWER = 1;
-    public static final byte ACTION_ORIENTATION = 2;
-    public static final byte ACTION_TILT_LEFT_RIGHT = 3;
-    public static final byte ACTION_TILT_UP_DOWN = 4;
-    public static final byte ACTION_ON = 5;
-    public static final byte ACTION_OFF = 6;
 
     ///////////////////////////////////////////////
     // Members
@@ -74,7 +62,7 @@ public class ADKManager implements Runnable {
         mContext = context;
         mHandler = new Handler();
         mCallback = callback;
-        mPool = Executors.newCachedThreadPool();
+        mPool = Executors.newSingleThreadExecutor();
         mLock = new Object[0];
     }
 
@@ -95,7 +83,8 @@ public class ADKManager implements Runnable {
                 synchronized (mLock) {
                     if (!mConnected) {
                         SLog.d(TAG, "Connecting to ADK...");
-                        connectToADK();
+                        disconnectInternal();
+                        connectInternal();
                     } else {
                         mTimer.cancel();
                     }
@@ -104,16 +93,117 @@ public class ADKManager implements Runnable {
         };
 
         try {
-            mTimer.schedule(reconnectTask, 0, 5000);
+            mTimer.schedule(reconnectTask, 0, 10000);
         } catch (IllegalStateException e) {
             SLog.e(TAG, "Can't schedule a task on a canceled timer", e);
         }
     }
 
     /**
+     * Disconnect from the ADK
+     */
+    public void disconnect() {
+        SLog.d(TAG, "Disconnecting from the ADK device");
+        disconnectInternal();
+        mCallback.onDisconnected();
+    }
+
+    /**
+     * Send command to the ADK
+     *
+     * @param command
+     * @param action
+     * @param data    May also be null if there's no data (if you read this, you rock!)
+     */
+    public void sendCommand(final byte command, final byte action, final byte[] data) {
+        mPool.execute(new Runnable() {
+            @Override
+            public void run() {
+                int dataLength = ((data != null) ? data.length : 0);
+
+                ByteBuffer buffer = ByteBuffer.allocate(3 + dataLength);
+                buffer.put(command);
+                buffer.put(action);
+                buffer.put(toUnsignedByte(dataLength));
+                if (data != null) {
+                    buffer.put(data);
+                }
+
+                if (mOutputStream != null) {
+                    try {
+                        SLog.d(TAG, "sendCommand: Sending data to ADK device: " + buffer);
+                        mOutputStream.write(buffer.array());
+                    } catch (IOException e) {
+                        SLog.e(TAG, e, "sendCommand: Failed to send command to ADK device");
+                        reconnect();
+                    }
+                } else {
+                    SLog.d(TAG, "sendCommand: Send failed: mOutStream was null");
+                    reconnect();
+                }
+            }
+        });
+    }
+
+    /**
+     * Convert <code>integer</code> to unsigned byte
+     *
+     * @param integer
+     * @return
+     */
+    public static byte toUnsignedByte(int integer) {
+        return (byte) (integer & 0xFF);
+    }
+
+    /**
+     * Check if connected to the ADK device
+     *
+     * @return
+     */
+    public boolean isConnected() {
+        return mConnected;
+    }
+
+    ///////////////////////////////////////////////
+    // Overrides & Implementations
+    ///////////////////////////////////////////////
+
+    /**
+     * The running thread. It takes care of the communication between the Android and the ADK
+     */
+    @Override
+    public void run() {
+        int ret;
+        byte[] buffer = new byte[16384];
+
+        // Keeps reading messages forever.
+        // There are probably a lot of messages in the buffer, each message 4 bytes.
+        while (true) {
+            try {
+                ret = mInputStream.read(buffer);
+                if (ret > 0) {
+                    final boolean ack = buffer[0] == 1;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            mCallback.onAckReceived(ack);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                break;
+            }
+
+        }
+    }
+
+    ///////////////////////////////////////////////
+    // Private
+    ///////////////////////////////////////////////
+    /**
      * Connect to the ADK device
      */
-    void connectToADK() {
+    void connectInternal() {
         synchronized (mLock) {
             mUsbManager = UsbManager.getInstance(mContext);
             PendingIntent permissionIntent = PendingIntent.getBroadcast(mContext, 0, new Intent(ACTION_USB_PERMISSION), 0);
@@ -140,11 +230,10 @@ public class ADKManager implements Runnable {
     }
 
     /**
-     * Disconnect from the ADK
+     * Disconnect from the ADK device
      */
-    public void disconnect() {
+    private void disconnectInternal() {
         synchronized (mLock) {
-            SLog.d(TAG, "Disconnecting from the ADK device");
             mConnected = false;
             if (mTimer != null) {
                 mTimer.cancel();
@@ -196,81 +285,6 @@ public class ADKManager implements Runnable {
     }
 
     /**
-     * Send command to the ADK
-     *
-     * @param command
-     * @param action
-     * @param data    May also be null if there's no data (if you read this, you rock!)
-     */
-    public void sendCommand(final byte command, final byte action, final byte[] data) {
-        mPool.execute(new Runnable() {
-            @Override
-            public void run() {
-                int dataLength = ((data != null) ? data.length : 0);
-
-                ByteBuffer buffer = ByteBuffer.allocate(2 + dataLength);
-                buffer.put(command);
-                buffer.put(action);
-                if (data != null) {
-                    buffer.put(data);
-                }
-
-                if (mOutputStream != null) {
-                    try {
-                        SLog.d(TAG, "sendCommand: Sending data to ADK device: " + buffer);
-                        mOutputStream.write(buffer.array());
-                    } catch (IOException e) {
-                        SLog.e(TAG, e, "sendCommand: Failed to send command to ADK device");
-                        reconnect();
-                    }
-                } else {
-                    SLog.d(TAG, "sendCommand: Send failed: mOutStream was null");
-                    reconnect();
-                }
-            }
-        });
-    }
-
-    public static String parseCommand(byte command) {
-        switch (command) {
-            case COMMAND_STAND_BY:
-                return "Stand by";
-
-            case COMMAND_MOTORS:
-                return "Motors";
-
-            case COMMAND_ROTATE:
-                return "Rotate";
-
-            default:
-                return "Unknown";
-        }
-    }
-
-    public static String parseAction(byte action) {
-        switch (action) {
-            case ACTION_MOTOR_POWER:
-                return "Power";
-
-            case ACTION_ORIENTATION:
-                return "Orientation";
-
-            case ACTION_TILT_LEFT_RIGHT:
-                return "Tilt left right";
-
-            case ACTION_TILT_UP_DOWN:
-                return "Tilt up down";
-
-            default:
-                return "Unknown";
-        }
-    }
-
-    ///////////////////////////////////////////////
-    // Private
-    ///////////////////////////////////////////////
-
-    /**
      * Try to reconnected
      */
     void reconnect() {
@@ -278,43 +292,6 @@ public class ADKManager implements Runnable {
         disconnect();
         connect();
     }
-
-    ///////////////////////////////////////////////
-    // Overrides & Implementations
-    ///////////////////////////////////////////////
-
-    /**
-     * The running thread. It takes care of the communication between the Android and the ADK
-     */
-    @Override
-    public void run() {
-        int ret;
-        byte[] buffer = new byte[16384];
-
-        // Keeps reading messages forever.
-        // There are probably a lot of messages in the buffer, each message 4 bytes.
-        while (true) {
-            try {
-                ret = mInputStream.read(buffer);
-                if (ret > 0) {
-                    final boolean ack = buffer[0] == 1;
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            mCallback.onADKAckReceived(ack);
-                        }
-                    });
-                }
-            } catch (Exception e) {
-                break;
-            }
-
-        }
-    }
-
-    ///////////////////////////////////////////////
-    // Private
-    ///////////////////////////////////////////////
 
     /**
      * Open read and write to and from the ADK device
@@ -338,6 +315,7 @@ public class ADKManager implements Runnable {
                 mCommunicationThread = new Thread(null, this, TAG);
                 mCommunicationThread.start();
                 mConnected = true;
+                mCallback.onConnected();
                 SLog.d(TAG, "Attached");
             } else {
                 SLog.d(TAG, "openAccessory: accessory open failed");
@@ -357,6 +335,11 @@ public class ADKManager implements Runnable {
     ///////////////////////////////////////////////
     // Inner classes
     ///////////////////////////////////////////////
+
+    /**
+     * Listens for the following events:
+     * {@link #ACTION_USB_PERMISSION}, {@link com.android.future.usb.UsbManager#ACTION_USB_ACCESSORY_ATTACHED}, {@link com.android.future.usb.UsbManager#ACTION_USB_ACCESSORY_DETACHED}
+     */
     private class UsbReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {

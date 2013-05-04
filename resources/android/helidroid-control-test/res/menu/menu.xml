@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/menu_reconnect"
+        android:icon="@drawable/ic_action_reconnect"
+        android:title="@string/reconnect"
+        android:showAsAction="ifRoom"/>
+
+    <item
+        android:id="@+id/menu_clear_log"
+        android:icon="@drawable/ic_action_clear_log"
+        android:title="@string/clear_log"
+        android:showAsAction="ifRoom"/>
+
+    <item android:id="@+id/menu_toggle_log"
+        android:icon="@drawable/ic_action_reconnect"
+        android:title="@string/toggle_log"
+        android:showAsAction="never"/>
+
+    <item
+        android:id="@+id/menu_settings"
+        android:icon="@drawable/ic_action_settings"
+        android:title="@string/settings"
+        android:showAsAction="never"/>
+</menu>

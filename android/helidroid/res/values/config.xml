@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="server_address">http://192.168.1.200:8888</string>
+</resources>

@@ -21,6 +21,7 @@ local.properties
 
 # Misc
 .DS_Store
+backup/
 
 # Intellij
 .idea/
@@ -33,4 +34,6 @@ out/
 # Images and local data store
 image*.jp*g
 server/data
+
+
 

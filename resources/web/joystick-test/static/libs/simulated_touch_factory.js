@@ -89,7 +89,9 @@ define(['config', 'log'], function (config, log) {
 
                         if (((targetPoint - varPoint) * stepSign) <= 0) {
                             clearInterval(me.intervalId);
-                            callback(this);
+                            callback.onEnd(this);
+                        } else {
+                            callback.onStep(me.startX, me.startY, me.clientX, me.clientY);
                         }
                     }, delay);
                 }
