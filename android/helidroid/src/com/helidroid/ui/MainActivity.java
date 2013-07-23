@@ -219,19 +219,27 @@ public class MainActivity extends Activity implements SocketManager.SocketListen
                         byte command = (byte) msg.arg1;
                         byte action = (byte) msg.arg2;
                         byte[] data = (byte[]) msg.obj;
-                        String firstValue = "{empty}";
-                        String secondValue = "{empty}";
+                        String throttle = "{empty}";
+                        String pitch = "{empty}";
+                        String roll = "{empty}";
+                        String yaw = "{empty}";
                         if (data != null && data.length > 0) {
-                            firstValue = String.valueOf(data[0]);
+                            throttle = String.valueOf(data[0]);
                             if (data.length > 1) {
-                                secondValue = String.valueOf(data[1]);
+                                pitch = String.valueOf(data[1]);
+                                if (data.length > 2) {
+                                    roll = String.valueOf(data[2]);
+                                    if (data.length > 3) {
+                                        yaw = String.valueOf(data[3]);
+                                    }
+                                }
                             }
                         }
 
                         mAdapter.add(getString(R.string.log_template,
                                 ADK.parseCommand(command),
                                 ADK.parseAction(action),
-                                firstValue, secondValue));
+                                throttle, pitch, roll, yaw));
                         mListLog.smoothScrollToPosition(mAdapter.getCount() - 1);
                     }
 

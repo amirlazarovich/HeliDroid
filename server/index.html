@@ -3,12 +3,23 @@
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0" />
-		<title>Testing web joystick</title>
+		<title>Remote Control</title>
 
 		<link href="static/css/default.css" rel="stylesheet"/>
         <script data-main="static/libs/main" src="static/libs/require.js"></script>
 	</head>
     <body>
+    <div class="switch-wrapper">
+        <label for="switch" class="onoffswitch-desc">Engine: </label>
+        <div class="onoffswitch" id="switch">
+            <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="engineSwitch">
+            <label class="onoffswitch-label" for="engineSwitch">
+                <div class="onoffswitch-inner"></div>
+                <div class="onoffswitch-switch"></div>
+            </label>
+        </div>
+    </div>
 
+    <div id="canvasWrapper"></div>
     </body>
 </html>

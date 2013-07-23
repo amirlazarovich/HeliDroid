@@ -10,6 +10,8 @@ public enum EventType {
     TAKE_PICTURE("take_picture"),
     TOGGLE_MUSIC("toggle_music"),
     KEEP_ALIVE("keep_alive"),
+    ACTION_STICKS("sticks"),
+    ACTION_STANDBY("standby"),
     UNKNOWN("");
 
 

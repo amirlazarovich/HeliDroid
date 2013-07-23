@@ -14,6 +14,8 @@ public class ADK {
     // adk-actions
     public static final byte ACTION_LEFT_STICK = 1;
     public static final byte ACTION_RIGHT_STICK = 2;
+    public static final byte ACTION_STICKS = 3;
+    public static final byte ACTION_STANDBY = 4;
 
 
     ///////////////////////////////////////////////
@@ -31,6 +33,12 @@ public class ADK {
 
     public static String parseAction(byte action) {
         switch (action) {
+            case ACTION_STICKS:
+                return "Sticks";
+
+            case ACTION_STANDBY:
+                return "Standby";
+
             case ACTION_LEFT_STICK:
                 return "Left Stick";
 

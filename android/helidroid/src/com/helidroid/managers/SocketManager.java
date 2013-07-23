@@ -241,19 +241,11 @@ public class SocketManager implements IOCallback, Callback {
         EventType eventType = EventType.getByValue(args[0].toString());
         switch (event) {
             case CONTROL:
-                if (args.length >= 3) {
-                    Integer firstValue = (Integer) args[1];
-                    Integer secondValue = (Integer) args[2];
-                    if (firstValue != null && secondValue != null) {
-                        SLog.i(TAG, "Control:: [%s], firstValue: %s, secondValue: %s", eventType.getValue(), firstValue, secondValue);
-                        onControlAction(eventType, firstValue, secondValue);
-                    } else {
-                        SLog.w(TAG, "Missing either firstValue or secondValue to process command Control");
-                    }
+                if (args.length >= 2) {
+                    onControlAction(eventType, (JSONObject) args[1]);
                 } else {
-                    SLog.w(TAG, "Missing either firstValue or secondValue to process command Control");
+                    SLog.w(TAG, "Missing values to process command Control");
                 }
-
                 break;
 
             case FUNCTION:
@@ -297,28 +289,45 @@ public class SocketManager implements IOCallback, Callback {
      * Handle actions directed to the motors
      *
      * @param eventType
-     * @param firstValue
-     * @param secondValue
+     * @param data
      */
-    private void onControlAction(EventType eventType, Integer firstValue, Integer secondValue) {
+    private void onControlAction(EventType eventType, JSONObject data) {
         switch (eventType) {
-            case LEFT_STICK:
+            case ACTION_STICKS:
                 sendCommand(ADK.COMMAND_CONTROL,
-                        ADK.ACTION_LEFT_STICK,
-                        new byte[]{
-                                firstValue.byteValue(),
-                                secondValue.byteValue()
+                        ADK.ACTION_STICKS,
+                        new byte[] {
+                                (byte) data.optInt("throttle"),
+                                (byte) data.optInt("pitch"),
+                                (byte) data.optInt("roll"),
+                                (byte) data.optInt("yaw")
                         });
                 break;
 
-            case RIGHT_STICK:
+            case ACTION_STANDBY:
                 sendCommand(ADK.COMMAND_CONTROL,
-                        ADK.ACTION_RIGHT_STICK,
-                        new byte[]{
-                                firstValue.byteValue(),
-                                secondValue.byteValue()
+                        ADK.ACTION_STANDBY,
+                        new byte[] {
+                                data.optBoolean("on", false) ? (byte) 1 : (byte) 0
                         });
                 break;
+//            case LEFT_STICK:
+//                sendCommand(ADK.COMMAND_CONTROL,
+//                        ADK.ACTION_LEFT_STICK,
+//                        new byte[]{
+//                                firstValue.byteValue(),
+//                                secondValue.byteValue()
+//                        });
+//                break;
+//
+//            case RIGHT_STICK:
+//                sendCommand(ADK.COMMAND_CONTROL,
+//                        ADK.ACTION_RIGHT_STICK,
+//                        new byte[]{
+//                                firstValue.byteValue(),
+//                                secondValue.byteValue()
+//                        });
+//                break;
 
             default:
                 SLog.w(TAG, "Unknown event type detected: %s", eventType);

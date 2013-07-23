@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HeliDroid</string>
-    <string name="log_template">[%1$s] %2$s: (%3$s, %4$s)</string>
+    <string name="log_template">[%1$s] %2$s: (%3$s, %4$s, %5$s, %6$s)</string>
     <string name="ack_template">Ack received: %1$b</string>
 
     <string name="preferences_server_address_title">server_address</string>
