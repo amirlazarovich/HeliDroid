@@ -122,11 +122,11 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
             drawJoystick(mContext2D,
                 {
                     clientX:mMouseX,
-                    clientY:mMouseY
+                    clientY:mMouseY + mCanvas.offsetTop
                 },
                 {
                     clientX:mMouseStartPosX,
-                    clientY:mMouseStartPosY
+                    clientY:mMouseStartPosY + mCanvas.offsetTop
                 }, "white");
         }
     }
