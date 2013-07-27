@@ -39,6 +39,9 @@ public class ADK {
             case COMMAND_SETTINGS:
                 return "Settings";
 
+            case COMMAND_RESPONSE:
+                return "Response";
+
             default:
                 return "Unknown";
         }

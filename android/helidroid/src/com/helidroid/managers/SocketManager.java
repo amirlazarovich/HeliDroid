@@ -282,7 +282,6 @@ public class SocketManager implements IOCallback, Callback {
         switch (action) {
             case ADK.ACTION_TUNE:
                 if (dataLength >= 38) {
-
                     float pitchKp = Utils.bytesToFloat(data, 2);
                     float pitchKi = Utils.bytesToFloat(data, 6);
                     float pitchKd = Utils.bytesToFloat(data, 10);

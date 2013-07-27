@@ -11,7 +11,7 @@
 //////////////////////////////////////////
 ////// Constants
 //////////////////////////////////////////
-#define DEBUG                       true
+#define DEBUG                       false
 
 #define DEFAULT_STANDBY             true
 
@@ -435,7 +435,7 @@ void onCommandGet(byte action, byte dataLength, byte* data) {
  */
 void onLoop() {
   if (millis() < _motorsStandbyTimestamp || _control.standby) {
-    //_log->d("onLoop:: Motors are on standby");  
+    _log->d("onLoop:: Motors are on standby");  
     digitalWrite(LED_1_PIN, HIGH);
     return;
   }

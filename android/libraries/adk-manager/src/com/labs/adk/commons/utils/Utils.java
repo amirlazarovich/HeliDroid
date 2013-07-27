@@ -26,9 +26,4 @@ public class Utils {
     public static float bytesToFloat(byte bytes[], int offset) {
         return ByteBuffer.wrap(bytes, offset, 4).order(ByteOrder.LITTLE_ENDIAN).getFloat();
     }
-
-
-    public static int byteToUnsignedInt(byte b) {
-        return b & 0xFF;
-    }
 }
