@@ -4,6 +4,7 @@ package com.helidroid.commons;
 * @author Amir Lazarovich
 */
 public enum EventType {
+    UNKNOWN(""),
     LEFT_STICK("left_stick"),
     RIGHT_STICK("right_stick"),
     POWER("power"),
@@ -12,7 +13,7 @@ public enum EventType {
     KEEP_ALIVE("keep_alive"),
     ACTION_STICKS("sticks"),
     ACTION_STANDBY("standby"),
-    UNKNOWN("");
+    ACTION_TUNE("tune");
 
 
     private String mValue;

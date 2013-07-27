@@ -9,6 +9,7 @@ import android.os.Handler;
 import android.os.ParcelFileDescriptor;
 import com.android.future.usb.UsbAccessory;
 import com.android.future.usb.UsbManager;
+import com.labs.commons.ADK;
 import com.labs.commons.SLog;
 
 import java.io.FileDescriptor;
@@ -182,13 +183,22 @@ public class ADKManager implements Runnable {
             try {
                 ret = mInputStream.read(buffer);
                 if (ret > 0) {
-                    final boolean ack = buffer[0] == 1;
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            mCallback.onAckReceived(ack);
-                        }
-                    });
+                    int command = buffer[0];
+                    SLog.d(TAG, "command: %d, length: %d", command, ret);
+                    switch (command) {
+                        case ADK.COMMAND_ACK:
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    mCallback.onAckReceived(true);
+                                }
+                            });
+                            break;
+
+                        default:
+                            mCallback.onDataReceived(command, buffer, ret);
+                            break;
+                    }
                 }
             } catch (Exception e) {
                 break;

@@ -98,4 +98,9 @@ public abstract class AdkActivity extends Activity implements Callback {
     public void onDisconnected() {
 
     }
+
+    @Override
+    public void onDataReceived(int command, byte[] data, int dataLength) {
+
+    }
 }

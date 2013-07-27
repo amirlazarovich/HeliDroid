@@ -11,6 +11,7 @@ import com.helidroid.App;
 import com.helidroid.R;
 import com.helidroid.commons.Event;
 import com.helidroid.commons.EventType;
+import com.labs.adk.commons.utils.Utils;
 import com.labs.adk.ADKManager;
 import com.labs.adk.Callback;
 import com.labs.commons.ADK;
@@ -248,6 +249,18 @@ public class SocketManager implements IOCallback, Callback {
                 }
                 break;
 
+            case SETTINGS:
+                if (args.length >= 2) {
+                    onSettingsAction(eventType, (JSONObject) args[1]);
+                } else {
+                    SLog.w(TAG, "Missing values to process command Settings");
+                }
+                break;
+
+            case GET:
+                onGetAction(eventType);
+                break;
+
             case FUNCTION:
                 onFunctionAction(eventType, (args.length > 1) ? args[1] : null);
                 break;
@@ -258,6 +271,47 @@ public class SocketManager implements IOCallback, Callback {
 
             default:
                 SLog.w(TAG, "Unknown event received: %s", rawEvent);
+        }
+    }
+
+    @Override
+    public void onDataReceived(int command, byte[] data, int dataLength) {
+        SLog.d(TAG, "onDataReceived:: command: %d, action: %d, dataLength: %d", command, data[1], dataLength);
+
+        int action = data[1];
+        switch (action) {
+            case ADK.ACTION_TUNE:
+                if (dataLength >= 38) {
+
+                    float pitchKp = Utils.bytesToFloat(data, 2);
+                    float pitchKi = Utils.bytesToFloat(data, 6);
+                    float pitchKd = Utils.bytesToFloat(data, 10);
+
+                    float rollKp = Utils.bytesToFloat(data, 14);
+                    float rollKi = Utils.bytesToFloat(data, 18);
+                    float rollKd = Utils.bytesToFloat(data, 22);
+
+                    float yawKp = Utils.bytesToFloat(data, 26);
+                    float yawKi = Utils.bytesToFloat(data, 30);
+                    float yawKd = Utils.bytesToFloat(data, 34);
+
+                    try {
+                        JSONObject response = new JSONObject();
+                        response.put("type", EventType.ACTION_TUNE.getValue());
+                        JSONObject dataWrapper = new JSONObject();
+                        dataWrapper.put("pitch", createJsonPID(pitchKp, pitchKi, pitchKd));
+                        dataWrapper.put("roll", createJsonPID(rollKp, rollKi, rollKd));
+                        dataWrapper.put("yaw", createJsonPID(yawKp, yawKi, yawKd));
+                        response.put("data", dataWrapper);
+                        SLog.d(TAG, "Send tuning parameters: %s", response.toString());
+                        mSocket.emit(Event.RESPONSE.getValue(), response);
+                    } catch (Exception e) {
+                        SLog.e(TAG, "Couldn't create json response", e);
+                    }
+                } else {
+                    SLog.w(TAG, "Missing values to process action Tune");
+                }
+                break;
         }
     }
 
@@ -296,7 +350,7 @@ public class SocketManager implements IOCallback, Callback {
             case ACTION_STICKS:
                 sendCommand(ADK.COMMAND_CONTROL,
                         ADK.ACTION_STICKS,
-                        new byte[] {
+                        new byte[]{
                                 (byte) data.optInt("throttle"),
                                 (byte) data.optInt("pitch"),
                                 (byte) data.optInt("roll"),
@@ -307,30 +361,67 @@ public class SocketManager implements IOCallback, Callback {
             case ACTION_STANDBY:
                 sendCommand(ADK.COMMAND_CONTROL,
                         ADK.ACTION_STANDBY,
-                        new byte[] {
+                        new byte[]{
                                 data.optBoolean("on", false) ? (byte) 1 : (byte) 0
                         });
                 break;
-//            case LEFT_STICK:
-//                sendCommand(ADK.COMMAND_CONTROL,
-//                        ADK.ACTION_LEFT_STICK,
-//                        new byte[]{
-//                                firstValue.byteValue(),
-//                                secondValue.byteValue()
-//                        });
-//                break;
-//
-//            case RIGHT_STICK:
-//                sendCommand(ADK.COMMAND_CONTROL,
-//                        ADK.ACTION_RIGHT_STICK,
-//                        new byte[]{
-//                                firstValue.byteValue(),
-//                                secondValue.byteValue()
-//                        });
-//                break;
-
             default:
                 SLog.w(TAG, "Unknown event type detected: %s", eventType);
+        }
+    }
+
+    /**
+     * Handle actions directed to settings
+     *
+     * @param eventType
+     * @param data
+     */
+    private void onSettingsAction(EventType eventType, JSONObject data) {
+        switch (eventType) {
+            case ACTION_TUNE:
+                float Kp = (float) data.optDouble("kp");
+                float Ki = (float) data.optDouble("ki");
+                float Kd = (float) data.optDouble("kd");
+
+                byte[] bKp = Utils.floatToBytes(Kp);
+                byte[] bKi = Utils.floatToBytes(Ki);
+                byte[] bKd = Utils.floatToBytes(Kd);
+
+                sendCommand(ADK.COMMAND_SETTINGS,
+                        ADK.ACTION_TUNE,
+                        new byte[]{
+                                (byte) data.optInt("type"),
+                                bKp[0],
+                                bKp[1],
+                                bKp[2],
+                                bKp[3],
+
+                                bKi[0],
+                                bKi[1],
+                                bKi[2],
+                                bKi[3],
+
+                                bKd[0],
+                                bKd[1],
+                                bKd[2],
+                                bKd[3]
+                        });
+                break;
+        }
+    }
+
+    /**
+     * Handle actions directed to get information from the adk device
+     *
+     * @param eventType
+     */
+    private void onGetAction(EventType eventType) {
+        switch (eventType) {
+            case ACTION_TUNE:
+                sendCommand(ADK.COMMAND_GET,
+                        ADK.ACTION_TUNE,
+                        null);
+                break;
         }
     }
 
@@ -371,6 +462,18 @@ public class SocketManager implements IOCallback, Callback {
         mListener.onSentCommand(command, action, data);
     }
 
+    private JSONObject createJsonPID(float kp, float ki, float kd) {
+        JSONObject pid = new JSONObject();
+        try {
+            pid.put("kp", kp);
+            pid.put("ki", ki);
+            pid.put("kd", kd);
+        } catch (Exception e) {
+            SLog.e(TAG, "Couldn't create PID json object", e);
+        }
+
+        return pid;
+    }
 
     ///////////////////////////////////////////////
     // Inner classes
@@ -448,8 +551,11 @@ public class SocketManager implements IOCallback, Callback {
 
     public interface SocketListener extends Callback {
         void onSentCommand(byte command, byte action, byte[] data);
+
         void onSocketFailure();
+
         void onSocketDisconnected();
+
         void onSocketConnected();
     }
 }

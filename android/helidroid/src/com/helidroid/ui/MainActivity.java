@@ -146,6 +146,11 @@ public class MainActivity extends Activity implements SocketManager.SocketListen
     }
 
     @Override
+    public void onDataReceived(int command, byte[] data, int dataLength) {
+
+    }
+
+    @Override
     public void onSocketConnected() {
         mHandler.sendMessage(Message.obtain(null,
                 SOCKET_CONNECTION_STATUS_CHANGE,

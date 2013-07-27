@@ -11,7 +11,7 @@
 //////////////////////////////////////////
 ////// Constants
 //////////////////////////////////////////
-#define DEBUG                       false
+#define DEBUG                       true
 
 #define DEFAULT_STANDBY             true
 
@@ -22,9 +22,18 @@
 #define LED_1_PIN                  13
 
 #define COMMAND_CONTROL             1
+#define COMMAND_SETTINGS            2
+#define COMMAND_GET                 3
+#define COMMAND_ACK                 4
+#define COMMAND_RESPONSE            5
 
 #define ACTION_STICKS               3
 #define ACTION_STANDBY              4
+#define ACTION_TUNE                 5
+
+#define TUNE_PITCH                  1
+#define TUNE_ROLL                   2
+#define TUNE_YAW                    3
 
 #define PID_SAMPLE_TIME_MILLIS     10
 
@@ -120,13 +129,17 @@ double _pitchOutput;
 
 double _angles[3];
 
+PID _pitch(&_pitchInput, &_pitchOutput, &_pitchSetPoint, 1, 0, 0, DIRECT);
 PID _roll(&_rollInput, &_rollOutput, &_rollSetPoint, 1, 0, 0, DIRECT);
 PID _yaw(&_yawInput, &_yawOutput, &_yawSetPoint, 1, 0, 0, DIRECT);
-PID _pitch(&_pitchInput, &_pitchOutput, &_pitchSetPoint, 1, 0, 0, DIRECT);
 
 unsigned long loop_start; 
 unsigned long _motorsStandbyTimestamp;
 
+union btf {
+    byte b[4];
+    float f;
+};
 //////////////////////////////////////////
 ////// Initialization
 //////////////////////////////////////////
@@ -148,6 +161,7 @@ void onCreate() {
   _control.pitch = 0;
   _control.roll = 0;
   _control.yaw = 0;
+  setMotorsPower(THROTTLE_MIN);
   
   _motorsStandbyTimestamp = 0;
   
@@ -195,6 +209,16 @@ void onMessageReceived(byte command, byte action, byte dataLength, byte* data) {
         _log->d("Command Control");
         onCommandControl(action, dataLength, data);
         break; 
+        
+     case COMMAND_SETTINGS:
+       _log->d("Command Settings");
+       onCommandSettings(action, dataLength, data);
+       break;
+       
+     case COMMAND_GET:
+       _log->d("Command Get");
+       onCommandGet(action, dataLength, data);
+       break;
   }
 }
 
@@ -224,20 +248,20 @@ void onCommandControl(byte action, byte dataLength, byte* data) {
         rawThrottle = 0;
       }  
 
-      _log->d("Raw Throttle: ", rawThrottle);
-      _log->d("Raw Pitch: ", rawPitch);
-      _log->d("Raw Roll: ", rawRoll);
-      _log->d("Raw Yaw: ", rawYaw);
+//      _log->d("Raw Throttle: ", rawThrottle);
+//      _log->d("Raw Pitch: ", rawPitch);
+//      _log->d("Raw Roll: ", rawRoll);
+//      _log->d("Raw Yaw: ", rawYaw);
       
       int targetThrottle = map(rawThrottle, 0, INPUT_MAX, THROTTLE_MIN, THROTTLE_MAX);
       int targetYaw = map(rawYaw, INPUT_MIN, INPUT_MAX, YAW_MIN, YAW_MAX); 
       int targetPitch = map(rawPitch, INPUT_MIN, INPUT_MAX, PITCH_MIN, PITCH_MAX);
       int targetRoll = map(rawRoll, INPUT_MIN, INPUT_MAX, ROLL_MIN, ROLL_MAX); 
       
-      _log->d("Throttle: ", targetThrottle);
-      _log->d("Pitch: ", targetPitch);
-      _log->d("Roll: ", targetRoll);      
-      _log->d("Yaw: ", targetYaw);
+//      _log->d("Throttle: ", targetThrottle);
+//      _log->d("Pitch: ", targetPitch);
+//      _log->d("Roll: ", targetRoll);      
+//      _log->d("Yaw: ", targetYaw);
   
       _control.throttle = targetThrottle;  
       _control.pitch = targetPitch;
@@ -263,6 +287,143 @@ void onCommandControl(byte action, byte dataLength, byte* data) {
 }
 
 
+/**
+ * Handle settings requests
+ *
+ * @param action The action sent by the Android device
+ * @param dataLength The length of "data"
+ * @param data Pointer to the extra data sent by the device
+ */
+void onCommandSettings(byte action, byte dataLength, byte* data) {
+  switch(action) {
+    case ACTION_TUNE: {
+      _log->d("Action Tune");
+      
+      btf conv;
+      conv.b[0] = (byte) data[1];
+      conv.b[1] = (byte) data[2];
+      conv.b[2] = (byte) data[3];
+      conv.b[3] = (byte) data[4];
+      double Kp = (double) conv.f;
+      
+      conv.b[0] = (byte) data[5];
+      conv.b[1] = (byte) data[6];
+      conv.b[2] = (byte) data[7];
+      conv.b[3] = (byte) data[8];
+      double Ki = (double) conv.f;
+      
+      conv.b[0] = (byte) data[9];
+      conv.b[1] = (byte) data[10];
+      conv.b[2] = (byte) data[11];
+      conv.b[3] = (byte) data[12];
+      double Kd = (double) conv.f;
+      
+      int8_t type = (int8_t) data[0];
+      switch (type) {
+        case TUNE_PITCH:
+          _log->d("Type: pitch");    
+          _pitch.SetTunings(Kp, Ki, Kd);  
+          break;
+          
+        case TUNE_ROLL:
+          _log->d("Type: roll");
+          _roll.SetTunings(Kp, Ki, Kd);
+          break;
+          
+        case TUNE_YAW:
+          _log->d("Type: yaw");
+          _yaw.SetTunings(Kp, Ki, Kd);
+          break;
+      }
+
+      _log->d("Kp: ", Kp);
+      _log->d("Ki: ", Ki);
+      _log->d("Kd: ", Kd);
+      break;
+    }
+  }
+}
+
+
+/**
+ * Handle get requests
+ *
+ * @param action The action sent by the Android device
+ * @param dataLength The length of "data"
+ * @param data Pointer to the extra data sent by the device
+ */
+void onCommandGet(byte action, byte dataLength, byte* data) {
+  switch(action) {
+    case ACTION_TUNE: {
+      _log->d("Action Tune");
+      byte msg[38];
+      btf conv;
+      int i = 0;
+      msg[i++] = COMMAND_RESPONSE;
+      msg[i++] = ACTION_TUNE;
+      
+      // pitch
+      conv.f = (float) _pitch.GetKp();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+      
+      conv.f = (float) _pitch.GetKi();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+
+      conv.f = (float) _pitch.GetKd();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+      
+      // roll
+      conv.f = (float) _roll.GetKp();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+      
+      conv.f = (float) _roll.GetKi();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+
+      conv.f = (float) _roll.GetKd();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+
+      // yaw
+      conv.f = (float) _yaw.GetKp();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+      
+      conv.f = (float) _yaw.GetKi();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+
+      conv.f = (float) _yaw.GetKd();            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+
+      sendToDevice(msg, i);
+      break;
+    }
+  }
+}
 //////////////////////////////////////////
 ////// Main loop
 //////////////////////////////////////////
@@ -274,14 +435,13 @@ void onCommandControl(byte action, byte dataLength, byte* data) {
  */
 void onLoop() {
   if (millis() < _motorsStandbyTimestamp || _control.standby) {
-    _log->d("onLoop:: Motors are on standby");  
+    //_log->d("onLoop:: Motors are on standby");  
     digitalWrite(LED_1_PIN, HIGH);
     return;
   }
   
   // every 10 ms (should be the same as our sampling rate constant DT)
   if (micros() - loop_start >= 10000) {
-
     loop_start = micros();
     
     // calculate true angles from accelerometer, gyroscope and magnetometer
@@ -324,9 +484,9 @@ void onLoop() {
     _yaw.Compute();
     _pitch.Compute();
   
-  //  _log->d("pitch output: ", _pitchOutput);
-  //  _log->d("roll output: ", _rollOutput);
-  //  _log->d("yaw output: ", _yawOutput);
+    _log->d("pitch output: ", _pitchOutput);
+    _log->d("roll output: ", _rollOutput);
+    _log->d("yaw output: ", _yawOutput);
   
   
     // now that we have all the values, apply these values to all our motors
@@ -424,13 +584,13 @@ double* getAngles() {
   //_angles[1] += ROLL_OFFSET;
   _angles[2] = gyro_yaw;
   
-  if (DEBUG) {
-    Serial.print(_angles[0]);
-    Serial.print(" | ");
-    Serial.print(_angles[1]);
-    Serial.print(" | ");
-    Serial.println(_angles[2]);  
-  }
+//  if (DEBUG) {
+//    Serial.print(_angles[0]);
+//    Serial.print(" | ");
+//    Serial.print(_angles[1]);
+//    Serial.print(" | ");
+//    Serial.println(_angles[2]);  
+//  }
   
   return _angles;
 }
@@ -557,9 +717,23 @@ void reconnectUsb() {
 void sendAck() {
   if (_accessory->isConnected()) {
     byte msg[1];
-    msg[0] = 1;
+    msg[0] = COMMAND_ACK;
     _accessory->write(msg, 1);
   }  
+}
+
+/**
+ * Send data to connected Android device
+ *
+ * @param msg Pointer to the data
+ * @param msgLength
+ */
+void sendToDevice(byte* msg, int msgLength) {
+  if (_accessory->isConnected()) {
+    _accessory->write(msg, msgLength);
+  } else {
+    _log->d("Can't send to device since it is not connected");
+  }
 }
 
 /**

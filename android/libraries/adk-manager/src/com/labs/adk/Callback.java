@@ -20,4 +20,13 @@ public interface Callback {
      * Callback invoked when the ADK device is disconnected
      */
     void onDisconnected();
+
+    /**
+     * Callback invoked when the ADK device sends data back
+     *
+     * @param command
+     * @param data
+     * @param dataLength
+     */
+    void onDataReceived(int command, byte[] data, int dataLength);
 }

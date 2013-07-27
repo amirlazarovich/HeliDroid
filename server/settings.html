@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0" />
+		<title>Control Settings</title>
+
+		<link href="static/css/settings.css" rel="stylesheet"/>
+        <script src="static/libs/socket.io.js" type="text/javascript"></script>
+        <script src="static/libs/jquery-2.0.3.min.js" type="text/javascript"></script>
+        <script type="text/javascript">
+            var mSocket = io.connect("/");
+            mSocket.on('response', onServerResponse);
+
+
+            /**
+             * Invoked when the server sends a response
+             *
+             * @param {Object} data
+             */
+            function onServerResponse(action, data) {
+                console.log("[onServerResponse] action: " + action + ":: data: " + data);
+
+                switch (action) {
+                    case ACTION_TUNE:
+                        setTunings('pitch', data.pitch);
+                        setTunings('roll', data.roll);
+                        setTunings('yaw', data.yaw);
+                        break;
+                }
+            }
+
+
+            /**
+             * Emit calculated value to connected socket.
+             *
+             * @param {String} event
+             * @param {String} type
+             * @param {Object} data
+             */
+            function sendToDevice(event, type, data) {
+                console.log("[sendToDevice] " + event + ":: " + type + ":: data: " + data);
+                mSocket.emit(event,
+                        {
+                            type:type,
+                            data:data
+                        });
+            }
+
+            function setTunings(axis, pid) {
+                $('#' + axis + '-kp').val(pid.kp);
+                $('#' + axis + '-ki').val(pid.ki);
+                $('#' + axis + '-kd').val(pid.kd);
+            }
+
+
+            var COMMAND_SETTINGS = "settings";
+            var COMMAND_GET = "get";
+            var ACTION_TUNE = "tune";
+            var TUNE_PITCH = 1;
+            var TUNE_ROLL = 2;
+            var TUNE_YAW = 3;
+
+            $(function() {
+                function getType(axis) {
+                    switch (axis) {
+                        case 'pitch':
+                            return TUNE_PITCH;
+
+                        case 'roll':
+                            return TUNE_ROLL;
+
+                        case 'yaw':
+                            return TUNE_YAW;
+
+                        default:
+                            return 0;
+                    }
+                }
+
+                function onClick(axis) {
+                    var kp = $('#' + axis + '-kp').val();
+                    var ki = $('#' + axis + '-ki').val();
+                    var kd = $('#' + axis + '-kd').val();
+                    sendToDevice(COMMAND_SETTINGS, ACTION_TUNE, {
+                        type: getType(axis),
+                        kp: kp,
+                        ki: ki,
+                        kd: kd
+                    });
+                }
+
+
+                $('#pitch-submit').click(function() {
+                    onClick('pitch');
+                });
+
+                $('#roll-submit').click(function() {
+                    onClick('roll');
+                });
+
+                $('#yaw-submit').click(function() {
+                    onClick('yaw');
+                });
+
+                $('#all-submit').click(function() {
+                    onClick('pitch');
+                    onClick('roll');
+                    onClick('yaw');
+                });
+
+                sendToDevice(COMMAND_GET, ACTION_TUNE, null);
+            });
+        </script>
+	</head>
+    <body>
+        <div>
+            <table>
+                <tbody>
+                    <tr>
+                        <td class="empty-header"></td>
+                        <td class="header">
+                            Kp
+                        </td>
+                        <td class="header">
+                            Ki
+                        </td>
+                        <td class="header">
+                            Kd
+                        </td>
+                        <td class="empty-header"></td>
+                    </tr>
+
+                    <tr>
+                        <td class="field-label">
+                            Pitch:
+                        </td>
+                        <td class="field-cell">
+                            <input id="pitch-kp" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="pitch-ki" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="pitch-kd" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="pitch-submit" type="button" class="field-btn" value="send"/>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td class="field-label">
+                            Roll:
+                        </td>
+                        <td class="field-cell">
+                            <input id="roll-kp" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="roll-ki" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="roll-kd" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="roll-submit" type="button" class="field-btn" value="send"/>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td class="field-label">
+                            Yaw:
+                        </td>
+                        <td class="field-cell">
+                            <input id="yaw-kp" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="yaw-ki" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="yaw-kd" type="text" class="field" step="any"/>
+                        </td>
+                        <td class="field-cell">
+                            <input id="yaw-submit" type="button" class="field-btn" value="send"/>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td class="field-empty"></td>
+                        <td class="field-empty"></td>
+                        <td class="field-empty"></td>
+                        <td class="field-empty"></td>
+                        <td class="field-cell">
+                            <input id="all-submit" type="button" class="field-btn" value="send all"/>
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+
+            <!--<div class="fields-header">-->
+                <!--<label class="header">Kp</label>-->
+                <!--<label class="header">Ki</label>-->
+                <!--<label class="header">Kd</label>-->
+            <!--</div>-->
+
+            <!--<div class="field-row" id="pitch">-->
+                <!--<label for="pitch" class="field-label">Pitch: </label>-->
+                <!--<input id="pitch-kp" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="pitch-ki" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="pitch-kd" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="pitch-submit" type="button" class="field-btn" value="send"/>-->
+            <!--</div>-->
+
+            <!--<div class="field-row" id="roll">-->
+                <!--<label for="roll" class="field-label">Roll: </label>-->
+                <!--<input id="roll-kp" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="roll-ki" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="roll-kd" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="roll-submit" type="button" class="field-btn" value="send"/>-->
+            <!--</div>-->
+
+            <!--<div class="field-row" id="yaw">-->
+                <!--<label for="yaw" class="field-label">Yaw: </label>-->
+                <!--<input id="yaw-kp" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="yaw-ki" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="yaw-kd" type="text" class="field" step="any" value="1.0000"/>-->
+                <!--<input id="yaw-submit" type="button" class="field-btn" value="send"/>-->
+            <!--</div>-->
+        </div>
+    </body>
+</html>

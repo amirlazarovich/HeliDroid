@@ -51,17 +51,25 @@ class KeepAliveHandler(web.RequestHandler):
 
 		print "keepAlive"
 		self.render("index.html")
-		
+
 class LogHandler(web.RequestHandler):
 	def get(self, *args, **kw):
 		for connection in connections:
 			connection.emit("got_log", self.get_argument("s"))
 
 		print "log: %s" % self.get_argument("s")
-		
+
 class WebHandler(web.RequestHandler):
-	def get(self, *args, **kw): 
-		self.render("index.html")
+    def initialize(self):
+        self.supported_path = ['index.html', 'settings.html']
+
+    def prepare(self):
+        action = self.request.path.split('/')[-1]
+        if action not in self.supported_path:
+            self.send_error(400)
+
+    def get(self, page):
+        self.render(page)
 
 	def post(self):
 		global image_id
@@ -99,15 +107,27 @@ class EventHandler(tornadio2.SocketConnection):
 
 	@tornadio2.event
 	def control(self, **kwargs):
-		self.emit_all("control", **kwargs) 	
+		self.emit_all("control", **kwargs)
 
 	@tornadio2.event
 	def function(self, **kwargs):
-		self.emit_all("function", **kwargs) 
+		self.emit_all("function", **kwargs)
 
 	@tornadio2.event
 	def log(self, **kwargs):
 		self.emit_all("log", **kwargs)
+
+	@tornadio2.event
+	def response(self, **kwargs):
+		self.emit_all("response", **kwargs)
+	
+	@tornadio2.event
+	def settings(self, **kwargs):
+		self.emit_all("settings", **kwargs)
+
+	@tornadio2.event
+	def get(self, **kwargs):
+		self.emit_all("get", **kwargs)
 
 class WebApp(object):
 	def __init__(self):
@@ -115,11 +135,11 @@ class WebApp(object):
 
 		routes = [
 			(r"/static/(.*)", web.StaticFileHandler, {"path": "./static"}),
-			(r"/", WebHandler),
 			(r"/keepalive", KeepAliveHandler),
 			(r"/log", LogHandler),
 			(r"/gallery", GalleryHandler),
-			(r"/last-image", LastImageHandler)
+			(r"/last-image", LastImageHandler),
+            (r"/(?P<page>[^\/]+)", WebHandler)
 		]
 
 		routes.extend(app_router.urls)

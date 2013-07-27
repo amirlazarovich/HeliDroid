@@ -4,10 +4,13 @@ package com.helidroid.commons;
 * @author Amir Lazarovich
 */
 public enum Event {
+    UNKNOWN(""),
     CONTROL("control"),
     FUNCTION("function"),
     KEEP_ALIVE("keep_alive"),
-    UNKNOWN("");
+    SETTINGS("settings"),
+    GET("get"),
+    RESPONSE("response");
 
     private String mValue;
 

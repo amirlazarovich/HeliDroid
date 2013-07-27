@@ -19,6 +19,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
     var ACTION_STANDBY = "standby";
     var ACTION_LEFT_STICK = "left_stick";
     var ACTION_RIGHT_STICK = "right_stick";
+    var ACTION_TUNE = "tune";
 
     var LEFT_JOYSTICK_COLOR = "#5555ff";
     var RIGHT_JOYSTICK_COLOR = "#ff5555";
