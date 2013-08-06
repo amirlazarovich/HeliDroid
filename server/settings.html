@@ -6,112 +6,7 @@
 		<title>Control Settings</title>
 
 		<link href="static/css/settings.css" rel="stylesheet"/>
-        <script src="static/libs/socket.io.js" type="text/javascript"></script>
-        <script src="static/libs/jquery-2.0.3.min.js" type="text/javascript"></script>
-        <script type="text/javascript">
-            var mSocket = io.connect("/");
-            mSocket.on('response', onServerResponse);
-
-
-            /**
-             * Invoked when the server sends a response
-             *
-             * @param {Object} data
-             */
-            function onServerResponse(action, data) {
-                console.log("[onServerResponse] action: " + action + ":: data: " + data);
-
-                switch (action) {
-                    case ACTION_TUNE:
-                        setTunings('pitch', data.pitch);
-                        setTunings('roll', data.roll);
-                        setTunings('yaw', data.yaw);
-                        break;
-                }
-            }
-
-
-            /**
-             * Emit calculated value to connected socket.
-             *
-             * @param {String} event
-             * @param {String} type
-             * @param {Object} data
-             */
-            function sendToDevice(event, type, data) {
-                console.log("[sendToDevice] " + event + ":: " + type + ":: data: " + data);
-                mSocket.emit(event,
-                        {
-                            type:type,
-                            data:data
-                        });
-            }
-
-            function setTunings(axis, pid) {
-                $('#' + axis + '-kp').val(pid.kp);
-                $('#' + axis + '-ki').val(pid.ki);
-                $('#' + axis + '-kd').val(pid.kd);
-            }
-
-
-            var COMMAND_SETTINGS = "settings";
-            var COMMAND_GET = "get";
-            var ACTION_TUNE = "tune";
-            var TUNE_PITCH = 1;
-            var TUNE_ROLL = 2;
-            var TUNE_YAW = 3;
-
-            $(function() {
-                function getType(axis) {
-                    switch (axis) {
-                        case 'pitch':
-                            return TUNE_PITCH;
-
-                        case 'roll':
-                            return TUNE_ROLL;
-
-                        case 'yaw':
-                            return TUNE_YAW;
-
-                        default:
-                            return 0;
-                    }
-                }
-
-                function onClick(axis) {
-                    var kp = $('#' + axis + '-kp').val();
-                    var ki = $('#' + axis + '-ki').val();
-                    var kd = $('#' + axis + '-kd').val();
-                    sendToDevice(COMMAND_SETTINGS, ACTION_TUNE, {
-                        type: getType(axis),
-                        kp: kp,
-                        ki: ki,
-                        kd: kd
-                    });
-                }
-
-
-                $('#pitch-submit').click(function() {
-                    onClick('pitch');
-                });
-
-                $('#roll-submit').click(function() {
-                    onClick('roll');
-                });
-
-                $('#yaw-submit').click(function() {
-                    onClick('yaw');
-                });
-
-                $('#all-submit').click(function() {
-                    onClick('pitch');
-                    onClick('roll');
-                    onClick('yaw');
-                });
-
-                sendToDevice(COMMAND_GET, ACTION_TUNE, null);
-            });
-        </script>
+        <script data-main="static/libs/main-settings" src="static/libs/require.js"></script>
 	</head>
     <body>
         <div>
@@ -197,6 +92,16 @@
 
                 </tbody>
             </table>
+        </div>
+
+        <div class="tilt-wrapper">
+            <input id="tilt" type="button" class="tilt-btn" value="get tilt"/>
+            <label id="tilt-lbl" for="tilt" class="tilt-lbl"></label>
+        </div>
+
+        <div class="calibrate-wrapper">
+            <input id="calibrate" type="button" class="calibrate-btn" value="calibrate"/>
+            <label id="calibrate-lbl" for="calibrate" class="calibrate-lbl"></label>
         </div>
     </body>
 </html>

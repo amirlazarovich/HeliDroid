@@ -7,11 +7,12 @@
 #include <Wire.h>
 #include <L3G.h>
 #include <ADXL345.h>
+#include <EEPROM.h>
 
 //////////////////////////////////////////
 ////// Constants
 //////////////////////////////////////////
-#define DEBUG                       false
+#define DEBUG                       true
 
 #define DEFAULT_STANDBY             true
 
@@ -30,6 +31,9 @@
 #define ACTION_STICKS               3
 #define ACTION_STANDBY              4
 #define ACTION_TUNE                 5
+#define ACTION_TILT                 6
+#define ACTION_CALIBRATE_TILT       7
+#define ACTION_TILT_OFFSET          8
 
 #define TUNE_PITCH                  1
 #define TUNE_ROLL                   2
@@ -40,8 +44,8 @@
 #define INPUT_MIN                -100
 #define INPUT_MAX                 100
 
-#define THROTTLE_MIN               50
-#define THROTTLE_MAX              180
+#define THROTTLE_MIN               54
+#define THROTTLE_MAX              173
 
 #define ROLL_MIN                  -30.0
 #define ROLL_MAX                   30.0
@@ -53,13 +57,29 @@
 #define PITCH_MAX                  30.0 
 
 
-#define STEEP_ANGLE                35
+#define STEEP_ANGLE                                45
 #define TIME_TO_WAIT_AFTER_SHUTTING_ALL_ENGINES    30000
-#define AUTO_STABILIZING_OFFSET    5
 
-#define PITCH_OFFSET  -1.12
-#define ROLL_OFFSET   0.4
-#define YAW_OFFSET    0
+
+// ID of the settings block
+#define CONFIG_VERSION "hd1"
+
+// Tell it where to store your config data in EEPROM
+#define CONFIG_START 32
+
+#define DEFAULT_PITCH_KP  1
+#define DEFAULT_PITCH_KI  0
+#define DEFAULT_PITCH_KD  0
+#define DEFAULT_ROLL_KP  1
+#define DEFAULT_ROLL_KI  0
+#define DEFAULT_ROLL_KD  0
+#define DEFAULT_YAW_KP  1
+#define DEFAULT_YAW_KI  0
+#define DEFAULT_YAW_KD  0
+
+#define DEFAULT_PITCH_OFFSET -1.12
+#define DEFAULT_ROLL_OFFSET   0.4
+#define DEFAULT_YAW_OFFSET    0
 
 // math constants
 #define INV_RAD 0.01745                   // PI / 180
@@ -92,6 +112,7 @@
 #define AV 0.01     // z-velocity filter, tau = 0.99s
 #define TV 0.99     // z-velocity filter
 
+define LOG_INTERVALS        2000
 //////////////////////////////////////////
 ////// Members
 //////////////////////////////////////////
@@ -111,6 +132,22 @@ typedef struct _Control {
   int8_t yaw;
 }Control;
 
+struct StoreStruct {
+  // identifier
+  char version[4];
+  float pitchKp, pitchKi, pitchKd;
+  float rollKp, rollKi, rollKd;
+  float yawKp, yawKi, yawKd;
+  float pitchOffset, rollOffset, yawOffset;
+  
+} _storage = {
+  CONFIG_VERSION,
+  DEFAULT_PITCH_KP, DEFAULT_PITCH_KI, DEFAULT_PITCH_KD,
+  DEFAULT_ROLL_KP, DEFAULT_ROLL_KI, DEFAULT_ROLL_KD,
+  DEFAULT_YAW_KP, DEFAULT_YAW_KI, DEFAULT_YAW_KD,
+  DEFAULT_PITCH_OFFSET, DEFAULT_ROLL_OFFSET, DEFAULT_YAW_OFFSET
+};
+
 Control _control;
 L3G _gyro;
 ADXL345 _acc;
@@ -129,12 +166,13 @@ double _pitchOutput;
 
 double _angles[3];
 
-PID _pitch(&_pitchInput, &_pitchOutput, &_pitchSetPoint, 1, 0, 0, DIRECT);
-PID _roll(&_rollInput, &_rollOutput, &_rollSetPoint, 1, 0, 0, DIRECT);
-PID _yaw(&_yawInput, &_yawOutput, &_yawSetPoint, 1, 0, 0, DIRECT);
+PID _pitch(&_pitchInput, &_pitchOutput, &_pitchSetPoint, _storage.pitchKp, _storage.pitchKi, _storage.pitchKd, DIRECT);
+PID _roll(&_rollInput, &_rollOutput, &_rollSetPoint, _storage.rollKp, _storage.rollKi, _storage.rollKd, DIRECT);
+PID _yaw(&_yawInput, &_yawOutput, &_yawSetPoint, _storage.yawKp, _storage.yawKi, _storage.yawKd, DIRECT);
 
 unsigned long loop_start; 
 unsigned long _motorsStandbyTimestamp;
+unsigned long _logTimestamp;
 
 union btf {
     byte b[4];
@@ -156,6 +194,7 @@ void onCreate() {
   _motor4.attach(MOTOR_4_PWM_PIN);
   pinMode(LED_1_PIN, OUTPUT);
   
+  loadConfig();
   _control.standby = DEFAULT_STANDBY;
   _control.throttle = THROTTLE_MIN;
   _control.pitch = 0;
@@ -165,17 +204,20 @@ void onCreate() {
   
   _motorsStandbyTimestamp = 0;
   
-  _roll.SetOutputLimits(ROLL_MIN, ROLL_MAX);
-  _roll.SetSampleTime(PID_SAMPLE_TIME_MILLIS);
-  _roll.SetMode(AUTOMATIC);
-  
-  _yaw.SetOutputLimits(YAW_MIN, YAW_MAX);
-  _yaw.SetSampleTime(PID_SAMPLE_TIME_MILLIS);
-  _yaw.SetMode(AUTOMATIC);
-
+  _pitch.SetTunings(_storage.pitchKp, _storage.pitchKi, _storage.pitchKd);
   _pitch.SetOutputLimits(PITCH_MIN, PITCH_MAX);
   _pitch.SetSampleTime(PID_SAMPLE_TIME_MILLIS);  
   _pitch.SetMode(AUTOMATIC);
+  
+  _roll.SetTunings(_storage.rollKp, _storage.rollKi, _storage.rollKd);  
+  _roll.SetOutputLimits(ROLL_MIN, ROLL_MAX);
+  _roll.SetSampleTime(PID_SAMPLE_TIME_MILLIS);
+  _roll.SetMode(AUTOMATIC);
+
+  _yaw.SetTunings(_storage.yawKp, _storage.yawKi, _storage.yawKd);  
+  _yaw.SetOutputLimits(YAW_MIN, YAW_MAX);
+  _yaw.SetSampleTime(PID_SAMPLE_TIME_MILLIS);
+  _yaw.SetMode(AUTOMATIC);
   
   // init I2C
   Wire.begin();  
@@ -304,42 +346,91 @@ void onCommandSettings(byte action, byte dataLength, byte* data) {
       conv.b[1] = (byte) data[2];
       conv.b[2] = (byte) data[3];
       conv.b[3] = (byte) data[4];
-      double Kp = (double) conv.f;
+      float Kp = conv.f;
       
       conv.b[0] = (byte) data[5];
       conv.b[1] = (byte) data[6];
       conv.b[2] = (byte) data[7];
       conv.b[3] = (byte) data[8];
-      double Ki = (double) conv.f;
+      float Ki = conv.f;
       
       conv.b[0] = (byte) data[9];
       conv.b[1] = (byte) data[10];
       conv.b[2] = (byte) data[11];
       conv.b[3] = (byte) data[12];
-      double Kd = (double) conv.f;
+      float Kd = conv.f;
       
       int8_t type = (int8_t) data[0];
       switch (type) {
         case TUNE_PITCH:
           _log->d("Type: pitch");    
-          _pitch.SetTunings(Kp, Ki, Kd);  
+          _pitch.SetTunings((double) Kp, (double) Ki, (double) Kd);  
+          _storage.pitchKp = Kp;
+          _storage.pitchKi = Ki;
+          _storage.pitchKd = Kd;
           break;
           
         case TUNE_ROLL:
           _log->d("Type: roll");
-          _roll.SetTunings(Kp, Ki, Kd);
+          _roll.SetTunings((double) Kp, (double) Ki, (double) Kd);  
+          _storage.rollKp = Kp;
+          _storage.rollKi = Ki;
+          _storage.rollKd = Kd;
           break;
           
         case TUNE_YAW:
           _log->d("Type: yaw");
-          _yaw.SetTunings(Kp, Ki, Kd);
+          _yaw.SetTunings((double) Kp, (double) Ki, (double) Kd);  
+          _storage.yawKp = Kp;
+          _storage.yawKi = Ki;
+          _storage.yawKd = Kd;
           break;
       }
+      
+      saveConfig();
 
       _log->d("Kp: ", Kp);
       _log->d("Ki: ", Ki);
       _log->d("Kd: ", Kd);
       break;
+    }
+    
+    case ACTION_CALIBRATE_TILT: {
+      onCalibrateTilt();
+      byte msg[14];
+      btf conv;
+       
+      int i = 0;
+      msg[i++] = COMMAND_RESPONSE;
+      msg[i++] = ACTION_TILT_OFFSET;
+ 
+      float pitchOffset = _storage.pitchOffset;
+      float rollOffset = _storage.rollOffset;
+      float yawOffset = _storage.yawOffset;
+       
+      // pitch
+      conv.f = pitchOffset;            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];  
+
+      // roll
+      conv.f = rollOffset;            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+     
+      // yaw
+      conv.f = yawOffset;            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];     
+     
+      sendToDevice(msg, i);
+      break; 
     }
   }
 }
@@ -422,12 +513,51 @@ void onCommandGet(byte action, byte dataLength, byte* data) {
       sendToDevice(msg, i);
       break;
     }
+    
+    case ACTION_TILT: {
+      _log->d("Action Tilt");
+      byte msg[14];      
+      btf conv;
+ 
+      int i = 0;
+      msg[i++] = COMMAND_RESPONSE;
+      msg[i++] = ACTION_TILT;
+ 
+      float* angles = (float *)getAngles();
+
+      // pitch
+      conv.f = angles[0];            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];  
+
+      // roll
+      conv.f = angles[1];            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];
+     
+      // yaw
+      conv.f = angles[2];            
+      msg[i++] = conv.b[0];
+      msg[i++] = conv.b[1];
+      msg[i++] = conv.b[2];
+      msg[i++] = conv.b[3];     
+     
+      _log->d("Pitch: ", angles[0]);
+      _log->d("Roll: ", angles[1]);
+      _log->d("Yaw: ", angles[2]);
+      
+      sendToDevice(msg, i);
+      break;
+    }
   }
 }
 //////////////////////////////////////////
 ////// Main loop
 //////////////////////////////////////////
-
 
 /**
  * Main loop. 
@@ -435,7 +565,11 @@ void onCommandGet(byte action, byte dataLength, byte* data) {
  */
 void onLoop() {
   if (millis() < _motorsStandbyTimestamp || _control.standby) {
-    _log->d("onLoop:: Motors are on standby");  
+    if (_logTimestamp < millis()) {
+      _logTimestamp = millis() + LOG_INTERVALS;
+      _log->d("onLoop:: Motors are on standby");
+    }  
+    
     digitalWrite(LED_1_PIN, HIGH);
     return;
   }
@@ -470,13 +604,13 @@ void onLoop() {
     _rollSetPoint = _control.roll;
     _yawSetPoint = _control.yaw; 
    
-  //  _log->d("pitch input: ", _pitchInput);
-  //  _log->d("roll input: ", _rollInput);
-  //  _log->d("yaw input: ", _yawInput);
-  // 
-  //  _log->d("pitch set point: ", _pitchSetPoint);
-  //  _log->d("roll set point: ", _rollSetPoint);
-  //  _log->d("yaw set point: ", _yawSetPoint);
+    _log->d("pitch input: ", _pitchInput);
+    _log->d("roll input: ", _rollInput);
+    _log->d("yaw input: ", _yawInput);
+   
+    _log->d("pitch set point: ", _pitchSetPoint);
+    _log->d("roll set point: ", _rollSetPoint);
+    _log->d("yaw set point: ", _yawSetPoint);
     
     // let the PID calculate the output from defined variables: xxxInput & xxxSetPoint.
     // output will be saved at xxxOutput
@@ -567,7 +701,7 @@ double* getAngles() {
   // integrate component of yaw rate into pitch angle
   int_pitch += _angles[1] * INV_RAD * gyro_yaw * DT;
   // filter with error feedback from pitch accelerometer
-  error_pitch = accel_pitch - int_pitch + PITCH_OFFSET;
+  error_pitch = accel_pitch - int_pitch + _storage.pitchOffset;
   _angles[0] = int_pitch + AA * error_pitch;
   
   // integrate roll rate into roll angle
@@ -575,20 +709,20 @@ double* getAngles() {
   // integrate component of yaw rate into roll angle
   int_roll -= _angles[0] * INV_RAD * gyro_yaw * DT;
   // filter with error feedback from roll accelerometer
-  error_roll = accel_roll - int_roll + ROLL_OFFSET;
+  error_roll = accel_roll - int_roll + _storage.rollOffset;
   _angles[1] = int_roll + AA * error_roll;
   
 
   // set global values and offsets
   //_angles[0] += PITCH_OFFSET;
   //_angles[1] += ROLL_OFFSET;
-  _angles[2] = gyro_yaw;
+  _angles[2] = gyro_yaw + _storage.yawOffset;
   
 //  if (DEBUG) {
 //    Serial.print(_angles[0]);
-//    Serial.print(" | ");
+//    Serial.print(":");
 //    Serial.print(_angles[1]);
-//    Serial.print(" | ");
+//    Serial.print(":");
 //    Serial.println(_angles[2]);  
 //  }
   
@@ -615,6 +749,67 @@ void resetControl() {
   _control.pitch = 0;
   _control.roll = 0;
   _control.yaw = 0;
+}
+
+
+/**
+ * calibrate tilt offset
+ */
+void onCalibrateTilt() {
+  digitalWrite(LED_1_PIN, HIGH);
+  
+  double totalPitch;
+  double totalRoll;
+  double totalYaw;
+  long count = 0;
+  long endTime = millis() + 20000; // 20 seconds from now
+  
+  _storage.pitchOffset = 0;
+  _storage.rollOffset = 0;
+  _storage.yawOffset = 0;
+  
+  while (millis() < endTime) {
+      count++;
+      double* angles = getAngles();
+      totalPitch += angles[0];  
+      totalRoll += angles[1];
+      totalYaw += angles[2];  
+  }  
+  
+  _storage.pitchOffset = (float) -(totalPitch / count);
+  _storage.rollOffset = (float) -(totalRoll / count);
+  _storage.yawOffset = (float) -(totalYaw / count);
+  
+  saveConfig();
+  
+  _log->d("Pitch offset: ", _storage.pitchOffset);
+  _log->d("Roll offset: ", _storage.rollOffset);
+  _log->d("Yaw offset: ", _storage.yawOffset);
+  
+  digitalWrite(LED_1_PIN, LOW);
+}
+
+/**
+ * Load configuration from EEPROM
+ */
+void loadConfig() {
+  // To make sure there are settings, and they are YOURS!
+  // If nothing is found it will use the default settings.
+  if (EEPROM.read(CONFIG_START + 0) == CONFIG_VERSION[0] &&
+      EEPROM.read(CONFIG_START + 1) == CONFIG_VERSION[1] &&
+      EEPROM.read(CONFIG_START + 2) == CONFIG_VERSION[2])
+    for (unsigned int t=0; t<sizeof(_storage); t++) {
+      *((char*)&_storage + t) = EEPROM.read(CONFIG_START + t);
+    }
+}
+
+/**
+ * Store configuration in EEPROM
+ */
+void saveConfig() {
+  for (unsigned int t=0; t<sizeof(_storage); t++) {
+    EEPROM.write(CONFIG_START + t, *((char*)&_storage + t));
+  }
 }
 
 //////////////////////////////////////////
@@ -666,9 +861,11 @@ void loop() {
     byte msg[BUFFER_SIZE];
     int len = _accessory->read(msg, BUFFER_SIZE, 1);
     if (len > 0) {
-      Serial.print("read: ");
-      Serial.print(len, DEC);
-      Serial.println(" bytes");
+      if (DEBUG) {
+        Serial.print("read: ");
+        Serial.print(len, DEC);
+        Serial.println(" bytes");
+      }
 
       handleMsgFromDevice(msg);      
       if (DEBUG) {
@@ -676,9 +873,14 @@ void loop() {
       }
     }
   } else if (_lastTimeReconnectedToUsb + TIME_STEP_BETWEEN_USB_RECONNECTIONS < millis()) {
-    Serial.println("USB is not connected. Trying to reconnect...");
+    _log->d("USB is not connected. Trying to reconnect...");
     reconnectUsb();
     _lastTimeReconnectedToUsb = millis();
+
+    // make sure nothing bad happens, shut down the motors    
+    digitalWrite(LED_1_PIN, HIGH);
+    setMotorsPower(THROTTLE_MIN);
+    resetControl();
   }
   
   onLoop();

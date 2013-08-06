@@ -21,6 +21,9 @@ public class ADK {
     public static final byte ACTION_STICKS = 3;
     public static final byte ACTION_STANDBY = 4;
     public static final byte ACTION_TUNE = 5;
+    public static final byte ACTION_TILT = 6;
+    public static final byte ACTION_CALIBRATE_TILT = 7;
+    public static final byte ACTION_TILT_OFFSET = 8;
 
     ///////////////////////////////////////////////
     // Public
@@ -57,6 +60,15 @@ public class ADK {
 
             case ACTION_TUNE:
                 return "Tune";
+
+            case ACTION_TILT:
+                return "Tilt";
+
+            case ACTION_CALIBRATE_TILT:
+                return "Calibrate Tilt";
+
+            case ACTION_TILT_OFFSET:
+                return "Tilt Offset";
 
             case ACTION_LEFT_STICK:
                 return "Left Stick";

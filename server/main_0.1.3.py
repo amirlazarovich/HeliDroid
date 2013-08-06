@@ -59,17 +59,22 @@ class LogHandler(web.RequestHandler):
 
 		print "log: %s" % self.get_argument("s")
 
+class DefaultWebHandler(web.RequestHandler):
+    def get(self):
+        self.render('index.html')
+
 class WebHandler(web.RequestHandler):
     def initialize(self):
-        self.supported_path = ['index.html', 'settings.html']
+        self.supported_path = ['index.html', 'settings.html', 'favicon.ico']
 
     def prepare(self):
         action = self.request.path.split('/')[-1]
+        action = self.fixUrl(action)
         if action not in self.supported_path:
             self.send_error(400)
 
     def get(self, page):
-        self.render(page)
+        self.render(self.fixUrl(page))
 
 	def post(self):
 		global image_id
@@ -79,6 +84,11 @@ class WebHandler(web.RequestHandler):
 			print "disp_img %s" % connection
 			connection.emit("disp_img", "static/image%d.jpg" % image_id)
 		image_id += 1
+
+    def fixUrl(self, url):
+        if ".html" not in url:
+            url += ".html"
+        return url
 
 class GalleryHandler(web.RequestHandler):
 	def get(self, *args, **kw):
@@ -139,7 +149,8 @@ class WebApp(object):
 			(r"/log", LogHandler),
 			(r"/gallery", GalleryHandler),
 			(r"/last-image", LastImageHandler),
-            (r"/(?P<page>[^\/]+)", WebHandler)
+            (r"/(?P<page>[^\/]+)", WebHandler),
+            (r"/", DefaultWebHandler)
 		]
 
 		routes.extend(app_router.urls)

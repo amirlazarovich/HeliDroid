@@ -11,26 +11,22 @@ import com.helidroid.App;
 import com.helidroid.R;
 import com.helidroid.commons.Event;
 import com.helidroid.commons.EventType;
-import com.labs.adk.commons.utils.Utils;
 import com.labs.adk.ADKManager;
 import com.labs.adk.Callback;
+import com.labs.adk.commons.utils.Utils;
 import com.labs.commons.ADK;
 import com.labs.commons.SLog;
 import io.socket.IOAcknowledge;
 import io.socket.IOCallback;
 import io.socket.SocketIO;
 import io.socket.SocketIOException;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.json.JSONObject;
 
-import java.io.ByteArrayInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -207,10 +203,13 @@ public class SocketManager implements IOCallback, Callback {
             public void run() {
                 SLog.d(TAG, "Trying to keepalive");
                 try {
-                    HttpClient client = new DefaultHttpClient();
-                    HttpGet request = new HttpGet();
-                    request.setURI(new URI(App.sConsts.SERVER_ADDRESS + "/keepalive"));
-                    client.execute(request);
+                    URL url = new URL(App.sConsts.SERVER_ADDRESS + "/keepalive");
+                    URLConnection urlConnection = url.openConnection();
+                    urlConnection.connect();
+//                    HttpClient client = new DefaultHttpClient();
+//                    HttpGet request = new HttpGet();
+//                    request.setURI(new URI(App.sConsts.SERVER_ADDRESS + "/keepalive"));
+//                    client.execute(request);
                 } catch (Exception e) {
                     SLog.e(TAG, "Couldn't keepalive", e);
                     mTimer.cancel();
@@ -311,6 +310,55 @@ public class SocketManager implements IOCallback, Callback {
                     SLog.w(TAG, "Missing values to process action Tune");
                 }
                 break;
+
+            case ADK.ACTION_TILT:
+                if (dataLength >= 14) {
+                    float pitch = Utils.bytesToFloat(data, 2);
+                    float roll = Utils.bytesToFloat(data, 6);
+                    float yaw = Utils.bytesToFloat(data, 10);
+
+                    try {
+                        JSONObject response = new JSONObject();
+                        response.put("type", EventType.ACTION_TILT.getValue());
+                        JSONObject dataWrapper = new JSONObject();
+                        dataWrapper.put("pitch", pitch);
+                        dataWrapper.put("roll", roll);
+                        dataWrapper.put("yaw", yaw);
+                        response.put("data", dataWrapper);
+                        SLog.d(TAG, "Send Tilt parameters: %s", response.toString());
+                        mSocket.emit(Event.RESPONSE.getValue(), response);
+                    } catch (Exception e) {
+                        SLog.e(TAG, "Couldn't create json response", e);
+                    }
+                } else {
+                    SLog.w(TAG, "Missing values to process action Tilt");
+                }
+
+                break;
+
+            case ADK.ACTION_TILT_OFFSET:
+                if (dataLength >= 14) {
+                    float pitchOffset = Utils.bytesToFloat(data, 2);
+                    float rollOffset = Utils.bytesToFloat(data, 6);
+                    float yawOffset = Utils.bytesToFloat(data, 10);
+
+                    try {
+                        JSONObject response = new JSONObject();
+                        response.put("type", EventType.ACTION_TILT_OFFSET.getValue());
+                        JSONObject dataWrapper = new JSONObject();
+                        dataWrapper.put("pitch", pitchOffset);
+                        dataWrapper.put("roll", rollOffset);
+                        dataWrapper.put("yaw", yawOffset);
+                        response.put("data", dataWrapper);
+                        SLog.d(TAG, "Send Tilt-Offset parameters: %s", response.toString());
+                        mSocket.emit(Event.RESPONSE.getValue(), response);
+                    } catch (Exception e) {
+                        SLog.e(TAG, "Couldn't create json response", e);
+                    }
+                } else {
+                    SLog.w(TAG, "Missing values to process action Tilt-Offset");
+                }
+                break;
         }
     }
 
@@ -406,6 +454,12 @@ public class SocketManager implements IOCallback, Callback {
                                 bKd[3]
                         });
                 break;
+
+            case ACTION_CALIBRATE_TILT:
+                sendCommand(ADK.COMMAND_SETTINGS,
+                        ADK.ACTION_CALIBRATE_TILT,
+                        null);
+                break;
         }
     }
 
@@ -419,6 +473,12 @@ public class SocketManager implements IOCallback, Callback {
             case ACTION_TUNE:
                 sendCommand(ADK.COMMAND_GET,
                         ADK.ACTION_TUNE,
+                        null);
+                break;
+
+            case ACTION_TILT:
+                sendCommand(ADK.COMMAND_GET,
+                        ADK.ACTION_TILT,
                         null);
                 break;
         }
@@ -508,30 +568,68 @@ public class SocketManager implements IOCallback, Callback {
         protected Long doInBackground(byte[]... params) {
             SLog.d(TAG, " params[0] wrote bytes: " + params[0].length);
 
-            HttpClient httpclient = new DefaultHttpClient();
-            HttpPost httppost = new HttpPost(App.sConsts.SERVER_ADDRESS);
-
-            InputStream dataStream = new ByteArrayInputStream(params[0]);
-
+            HttpURLConnection connection = null;
             try {
-                SLog.d(TAG, " before sending 0  " + dataStream.available());
-            } catch (IOException e) {
-                SLog.e(TAG, "The stream was closed", e);
-            }
+                URL url = new URL(App.sConsts.SERVER_ADDRESS);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "binary/octet-stream");
+                connection.setRequestProperty("Content-Length", String.valueOf(params[0].length));
+                connection.setDoOutput(true);
 
-            InputStreamEntity reqEntity;
-            try {
-                reqEntity = new InputStreamEntity(dataStream, dataStream.available());
-                reqEntity.setContentType("binary/octet-stream");
+                //Send request
+                DataOutputStream wr = new DataOutputStream(connection.getOutputStream());
+                wr.write(params[0], 0, params[0].length);
+                wr.flush();
+                wr.close();
 
-                SLog.d(TAG, " before sending 1" + reqEntity.getContentLength());
-
-                //reqEntity.setChunked(true); // Send in multiple parts if needed
-                httppost.setEntity(reqEntity);
-                httpclient.execute(httppost);
+                connection.connect();
             } catch (Exception e) {
-                SLog.e(TAG, "Couldn't send image to server", e);
+                SLog.e(TAG, e, "Couldn't send picture");
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
+
+
+
+//            InputStream dataStream = new ByteArrayInputStream(params[0]);
+//
+//            try {
+//                SLog.d(TAG, " before sending 0  " + dataStream.available());
+//            } catch (IOException e) {
+//                SLog.e(TAG, "The stream was closed", e);
+//            }
+//
+//
+//
+//
+//
+//            HttpClient httpclient = new DefaultHttpClient();
+//            HttpPost httppost = new HttpPost(App.sConsts.SERVER_ADDRESS);
+//
+//            InputStream dataStream = new ByteArrayInputStream(params[0]);
+//
+//            try {
+//                SLog.d(TAG, " before sending 0  " + dataStream.available());
+//            } catch (IOException e) {
+//                SLog.e(TAG, "The stream was closed", e);
+//            }
+//
+//            InputStreamEntity reqEntity;
+//            try {
+//                reqEntity = new InputStreamEntity(dataStream, dataStream.available());
+//                reqEntity.setContentType("binary/octet-stream");
+//
+//                SLog.d(TAG, " before sending 1" + reqEntity.getContentLength());
+//
+//                //reqEntity.setChunked(true); // Send in multiple parts if needed
+//                httppost.setEntity(reqEntity);
+//                httpclient.execute(httppost);
+//            } catch (Exception e) {
+//                SLog.e(TAG, "Couldn't send image to server", e);
+//            }
 
             SLog.d(TAG, "Async op");
             return null;

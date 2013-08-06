@@ -13,7 +13,10 @@ public enum EventType {
     KEEP_ALIVE("keep_alive"),
     ACTION_STICKS("sticks"),
     ACTION_STANDBY("standby"),
-    ACTION_TUNE("tune");
+    ACTION_TUNE("tune"),
+    ACTION_TILT("tilt"),
+    ACTION_CALIBRATE_TILT("calibrate_tilt"),
+    ACTION_TILT_OFFSET("tilt_offset");
 
 
     private String mValue;
