@@ -3,24 +3,15 @@
  *
  * @constructor
  */
-define(['socket.io', 'config', 'log', "jquery", "prototype"], function (io, config, log, $) {
+define(['socket.io', 'common', "jquery", "prototype"], function (io, common, $) {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
     var TAG = "Screen-Settings";
-
-    var COMMAND_SETTINGS = "settings";
-    var COMMAND_GET = "get";
-    var ACTION_TUNE = "tune";
-    var ACTION_TILT = "tilt";
-    var ACTION_CALIBRATE_TILT = "calibrate_tilt";
-    var ACTION_TILT_OFFSET = "tilt_offset";
-    var TUNE_PITCH = 1;
-    var TUNE_ROLL = 2;
-    var TUNE_YAW = 3;
     ////////////////////////////////////
     ///////// Members
     ////////////////////////////////////
+    var mLog = common.log;
     var mSocket;
     var autoRequestTilt = false;
 
@@ -78,47 +69,31 @@ define(['socket.io', 'config', 'log', "jquery", "prototype"], function (io, conf
      * @param {Object} data
      */
     function onServerResponse(action, data) {
-        log.d(TAG, "onServerResponse: action: " + action + ":: data: " + data);
+        mLog.d(TAG, "onServerResponse: action: " + action + ":: data: " + data);
 
         switch (action) {
-            case ACTION_TUNE:
+            case common.ACTION_TUNE:
                 setTunings('pitch', data.pitch);
                 setTunings('roll', data.roll);
                 setTunings('yaw', data.yaw);
                 break;
 
-            case ACTION_TILT:
+            case common.ACTION_TILT:
                 appendTilt(data);
                 break;
 
-            case ACTION_TILT_OFFSET:
+            case common.ACTION_TILT_OFFSET:
                 appendTiltOffset(data);
                 break;
         }
     }
 
     function onCalibrate() {
-        sendToDevice(COMMAND_SETTINGS, ACTION_CALIBRATE_TILT, null);
+        common.sendToDevice(mSocket, common.COMMAND_SETTINGS, common.ACTION_CALIBRATE_TILT, null);
     }
 
     function onGetTilt() {
-        sendToDevice(COMMAND_GET, ACTION_TILT, null);
-    }
-
-    /**
-     * Emit calculated value to connected socket.
-     *
-     * @param {String} event
-     * @param {String} type
-     * @param {Object} data
-     */
-    function sendToDevice(event, type, data) {
-        log.d(TAG, "sendToDevice: " + event + ":: " + type + ":: data: " + data);
-        mSocket.emit(event,
-            {
-                type:type,
-                data:data
-            });
+        common.sendToDevice(mSocket, common.COMMAND_GET, common.ACTION_TILT, null);
     }
 
     /**
@@ -167,13 +142,13 @@ define(['socket.io', 'config', 'log', "jquery", "prototype"], function (io, conf
     function getType(axis) {
         switch (axis) {
             case 'pitch':
-                return TUNE_PITCH;
+                return common.TUNE_PITCH;
 
             case 'roll':
-                return TUNE_ROLL;
+                return common.TUNE_ROLL;
 
             case 'yaw':
-                return TUNE_YAW;
+                return common.TUNE_YAW;
 
             default:
                 return 0;
@@ -189,7 +164,7 @@ define(['socket.io', 'config', 'log', "jquery", "prototype"], function (io, conf
         var kp = $('#' + axis + '-kp').val();
         var ki = $('#' + axis + '-ki').val();
         var kd = $('#' + axis + '-kd').val();
-        sendToDevice(COMMAND_SETTINGS, ACTION_TUNE, {
+        common.sendToDevice(mSocket, common.COMMAND_SETTINGS, common.ACTION_TUNE, {
             type: getType(axis),
             kp: kp,
             ki: ki,
@@ -205,8 +180,8 @@ define(['socket.io', 'config', 'log', "jquery", "prototype"], function (io, conf
            mSocket = io.connect("/");
            mSocket.on('response', onServerResponse);
 
-           sendToDevice(COMMAND_GET, ACTION_TUNE, null);
-           sendToDevice(COMMAND_GET, ACTION_TILT, null);
+           common.sendToDevice(mSocket, common.COMMAND_GET, common.ACTION_TUNE, null);
+           common.sendToDevice(mSocket, common.COMMAND_GET, common.ACTION_TILT, null);
        }
     };
 });

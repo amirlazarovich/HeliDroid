@@ -3,7 +3,7 @@
  *
  * @constructor
  */
-define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], function (io, touchFactory, config, log) {
+define(['socket.io', 'simulated_touch_factory', 'common', "prototype"], function (io, touchFactory, common) {
     ////////////////////////////////////
     ///////// Constants
     ////////////////////////////////////
@@ -14,13 +14,6 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
     var HOLD_LEFT_JOYSTICK = true;
     var JOYSTICK_THRESHOLD = 10;
 
-    var COMMAND_CONTROL = "control";
-    var ACTION_STICKS = "sticks";
-    var ACTION_STANDBY = "standby";
-    var ACTION_LEFT_STICK = "left_stick";
-    var ACTION_RIGHT_STICK = "right_stick";
-    var ACTION_TUNE = "tune";
-
     var LEFT_JOYSTICK_COLOR = "#5555ff";
     var RIGHT_JOYSTICK_COLOR = "#ff5555";
 
@@ -30,6 +23,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
     ///////// Members
     ////////////////////////////////////
     // private-members
+    var mLog = common.log;
     var mSocket;
     var mCanvas;
     var mContext2D;
@@ -117,7 +111,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                         clientY:simulatedTouch.startY
                     }, (simulatedTouch.id == LEFT_JOYSTICK) ? LEFT_JOYSTICK_COLOR : RIGHT_JOYSTICK_COLOR);
 
-                log.d(TAG, "joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
+                mLog.d(TAG, "joystick-simulated-draw: (" + simulatedTouch.clientX + ", " + simulatedTouch.clientY + ")");
             }
         } else if (mIsTrackingMouseMovement) {
             drawJoystick(mContext2D,
@@ -130,22 +124,6 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                     clientY:mMouseStartPosY + mCanvas.offsetTop
                 }, "white");
         }
-    }
-
-    /**
-     * Emit calculated value to connected socket.
-     *
-     * @param {String} event
-     * @param {String} type
-     * @param {Object} data
-     */
-    function sendToDevice(event, type, data) {
-        mSocket.emit(event,
-            {
-                type:type,
-                data:data
-            });
-        log.d(TAG, event + ":: " + type + ":: data: " + data);
     }
 
     /**
@@ -243,7 +221,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
         mContext2D.lineWidth = 2;
 
         var engineSwitch = document.getElementById("engineSwitch");
-        engineSwitch.onchange = onEngineSwitch;
+        engineSwitch.onchange = onEngineChange;
     }
 
     /**
@@ -251,8 +229,8 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
      *
      * @param event
      */
-    function onEngineSwitch(event) {
-        sendToDevice(COMMAND_CONTROL, ACTION_STANDBY,
+    function onEngineChange(event) {
+        common.sendToDevice(mSocket, common.COMMAND_CONTROL, common.ACTION_STANDBY,
                             {
                                 on: !event.target.checked
                             });
@@ -264,12 +242,12 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
      * @param event
      */
     function onTouchStart(event) {
-        log.d(TAG, "onTouchStart: start");
+        mLog.d(TAG, "onTouchStart: start");
         cancelSimulatedTouches(mSimulatedTouches);
         var touchTypes = parseTouchEvent(event.touches, true);
         // append only unique touch types
         mTrackingTouchTypes = mTrackingTouchTypes.concat(touchTypes).unique();
-        log.d(TAG, "onTouchStart: end");
+        mLog.d(TAG, "onTouchStart: end");
     }
 
     /**
@@ -278,11 +256,11 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
      * @param event
      */
     function onTouchMove(event) {
-        log.d(TAG, "onTouchMove: start");
+        mLog.d(TAG, "onTouchMove: start");
         // Prevent the browser from doing its default thing (scroll, zoom)
         event.preventDefault();
         parseTouchEvent(event.touches, false);
-        log.d(TAG, "onTouchMove: end");
+        mLog.d(TAG, "onTouchMove: end");
     }
 
     /**
@@ -291,7 +269,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
      * @param event
      */
     function onTouchEnd(event) {
-        log.d(TAG, "onTouchEnd: start");
+        mLog.d(TAG, "onTouchEnd: start");
         var activeTouchTypes = getTouchTypes(event.touches);
 
         // find which touch event just ended
@@ -302,7 +280,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
         // update which touch types we're tracking
         mTrackingTouchTypes = activeTouchTypes;
         initiateSlowStop(endedTouchTypes);
-        log.d(TAG, "onTouchEnd: end");
+        mLog.d(TAG, "onTouchEnd: end");
     }
 
     /**
@@ -339,7 +317,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                 onStep:function (startX, startY, currentX, currentY) {
                     mThrottle = Math.floor(calculateYAxis(currentY, startY));
                     mYaw = Math.floor(calculateXAxis(currentX, startX));
-                    sendToDevice(COMMAND_CONTROL, ACTION_STICKS,
+                    common.sendToDevice(mSocket, common.COMMAND_CONTROL, common.ACTION_STICKS,
                                         {
                                             throttle: mThrottle,
                                             pitch: mPitch,
@@ -355,7 +333,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                     mYaw = 0;
 
                     // fix last values
-                    sendToDevice(COMMAND_CONTROL, ACTION_STICKS,
+                    common.sendToDevice(mSocket, common.COMMAND_CONTROL, common.ACTION_STICKS,
                                         {
                                             throttle: mThrottle,
                                             pitch: mPitch,
@@ -376,7 +354,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                 onStep:function (startX, startY, currentX, currentY) {
                     mPitch = Math.floor(calculateYAxis(currentY, startY));
                     mRoll = Math.floor(calculateXAxis(currentX, startX));
-                    sendToDevice(COMMAND_CONTROL, ACTION_STICKS,
+                    common.sendToDevice(mSocket, common.COMMAND_CONTROL, common.ACTION_STICKS,
                                         {
                                             throttle: mThrottle,
                                             pitch: mPitch,
@@ -392,7 +370,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                     mRoll = 0;
 
                     // fix last values
-                    sendToDevice(COMMAND_CONTROL, ACTION_STICKS,
+                    common.sendToDevice(mSocket, common.COMMAND_CONTROL, common.ACTION_STICKS,
                                         {
                                             throttle: mThrottle,
                                             pitch: mPitch,
@@ -426,7 +404,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
      * @return {Array} array of touch types
      */
     function parseTouchEvent(touches, defineStartPosition) {
-        log.d(TAG, "parseTouchEvent: start");
+        mLog.d(TAG, "parseTouchEvent: start");
         var touchTypes = [];
         var halfWindowWidth = window.innerWidth / 2;
         for (var i = 0, max = touches.length; i < max; i++) {
@@ -441,7 +419,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                     continue;
                 }
 
-                log.d(TAG, "parseTouchEvent: calculating right");
+                mLog.d(TAG, "parseTouchEvent: calculating right");
                 touchTypes.push(RIGHT_JOYSTICK);
                 mRightTouch = touch;
                 mPitch = calculateYAxis(mRightTouch.clientY - mCanvas.offsetTop, mRightTouchStartPos.clientY - mCanvas.offsetTop);
@@ -457,7 +435,7 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
                     continue;
                 }
 
-                log.d(TAG, "parseTouchEvent: calculating left");
+                mLog.d(TAG, "parseTouchEvent: calculating left");
                 touchTypes.push(LEFT_JOYSTICK);
                 mLeftTouch = touch;
                 mThrottle = calculateYAxis(mLeftTouch.clientY - mCanvas.offsetTop, mLeftTouchStartPos.clientY - mCanvas.offsetTop);
@@ -465,14 +443,14 @@ define(['socket.io', 'simulated_touch_factory', 'config', 'log', "prototype"], f
             }
         }
 
-        sendToDevice(COMMAND_CONTROL, ACTION_STICKS,
+        common.sendToDevice(mSocket, common.COMMAND_CONTROL, common.ACTION_STICKS,
                             {
                                 throttle: mThrottle,
                                 pitch: mPitch,
                                 roll: mRoll,
                                 yaw: mYaw
                             });
-        log.d(TAG, "parseTouchEvent: end");
+        mLog.d(TAG, "parseTouchEvent: end");
         return touchTypes;
     }
 

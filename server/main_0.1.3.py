@@ -50,7 +50,7 @@ class KeepAliveHandler(web.RequestHandler):
 			connection.emit("keep_alive", "keep_alive")
 
 		print "keepAlive"
-		self.render("index.html")
+		self.render("controller.html")
 
 class LogHandler(web.RequestHandler):
 	def get(self, *args, **kw):
@@ -61,11 +61,11 @@ class LogHandler(web.RequestHandler):
 
 class DefaultWebHandler(web.RequestHandler):
     def get(self):
-        self.render('index.html')
+        self.render('controller.html')
 
 class WebHandler(web.RequestHandler):
     def initialize(self):
-        self.supported_path = ['index.html', 'settings.html', 'favicon.ico']
+        self.supported_path = ['controller.html', 'settings.html', 'controller-no-touch.html', 'favicon.ico']
 
     def prepare(self):
         action = self.request.path.split('/')[-1]

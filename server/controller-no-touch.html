@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0" />
+		<title>Remote Control - No Touch</title>
+
+        <link href="static/css/switch.css" rel="stylesheet"/>
+        <link href="static/css/controller-no-touch.css" rel="stylesheet"/>
+        <script data-main="static/libs/main-no-touch" src="static/libs/require.js"></script>
+	</head>
+    <body>
+        <div class="switch-wrapper br">
+            <label for="switch-engine" class="onoffswitch-desc fixwidth">Engine: </label>
+            <div class="onoffswitch" id="switch-engine">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="engineSwitch">
+                <label class="onoffswitch-label" for="engineSwitch">
+                    <div class="onoffswitch-inner"></div>
+                    <div class="onoffswitch-switch"></div>
+                </label>
+            </div>
+        </div>
+
+        <div class="switch-wrapper">
+            <label for="switch-auto-send" class="onoffswitch-desc">Send values on every change:</label>
+            <div class="onoffswitch" id="switch-auto-send">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="autoSendSwitch" checked>
+                <label class="onoffswitch-label" for="autoSendSwitch">
+                    <div class="onoffswitch-inner"></div>
+                    <div class="onoffswitch-switch"></div>
+                </label>
+            </div>
+        </div>
+
+        <div class="range-wrapper">
+            <label for="throttle" class="range-lbl">Throttle: </label>
+            <input id="throttle" type="range" class="range" min="0" max="100" value="0" tabindex="1">
+            <input id="throttle-val" type="number" class="range-val" tabindex="2">
+            <input id="throttle-reset" type="button" class="range-reset" value="reset" tabindex="3">
+        </div>
+        <div class="range-wrapper">
+            <label for="pitch" class="range-lbl">Pitch: </label>
+            <input id="pitch" type="range" class="range" min="-100" max="100" value="0" tabindex="4">
+            <input id="pitch-val" type="number" class="range-val" tabindex="5">
+            <input id="pitch-reset" type="button" class="range-reset" value="reset" tabindex="6">
+        </div>
+        <div class="range-wrapper">
+            <label for="roll" class="range-lbl">Roll: </label>
+            <input id="roll" type="range" class="range" min="-100" max="100" value="0" tabindex="7">
+            <input id="roll-val" type="number" class="range-val" tabindex="8">
+            <input id="roll-reset" type="button" class="range-reset" value="reset" tabindex="9">
+        </div>
+        <div class="range-wrapper">
+            <label for="yaw" class="range-lbl">Yaw: </label>
+            <input id="yaw" type="range" class="range" min="-100" max="100" value="0" tabindex="10">
+            <input id="yaw-val" type="number" class="range-val" tabindex="11">
+            <input id="yaw-reset" type="button" class="range-reset" value="reset" tabindex="12">
+        </div>
+
+        <input id="btn-send" type="button" class="btn-send" value="send" tabindex="13">
+    </body>
+</html>

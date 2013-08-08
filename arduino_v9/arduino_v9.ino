@@ -112,7 +112,7 @@
 #define AV 0.01     // z-velocity filter, tau = 0.99s
 #define TV 0.99     // z-velocity filter
 
-define LOG_INTERVALS        2000
+#define LOG_INTERVALS        2000
 //////////////////////////////////////////
 ////// Members
 //////////////////////////////////////////
@@ -627,10 +627,10 @@ void onLoop() {
     float pitch_2 = _pitchOutput / 2;
     float roll_2 = _rollOutput / 2;
   
-    int motor1Power = _control.throttle + pitch_2 - roll_2 + _yawOutput;
-    int motor2Power = _control.throttle + pitch_2 + roll_2 - _yawOutput;
-    int motor3Power = _control.throttle - pitch_2 + roll_2 + _yawOutput;
-    int motor4Power = _control.throttle - pitch_2 - roll_2 - _yawOutput; 
+    int motor1Power = _control.throttle + pitch_2 - roll_2;// + _yawOutput;
+    int motor2Power = _control.throttle + pitch_2 + roll_2;// - _yawOutput;
+    int motor3Power = _control.throttle - pitch_2 + roll_2;// + _yawOutput;
+    int motor4Power = _control.throttle - pitch_2 - roll_2;// - _yawOutput; 
     
     _motor1.write(motor1Power);
     _motor2.write(motor2Power);

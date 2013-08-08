@@ -1,0 +1,48 @@
+body {
+	background-color: white;
+}
+
+.br {
+    display: table !important;
+}
+
+.fixwidth {
+    width: 188px;
+}
+
+.range {
+    height: 5px;
+}
+
+.range-lbl {
+    width: 50px;
+    display: inline-block;
+    text-align: right;
+    margin-right: 5px;
+}
+
+.range-val {
+    width: 40px;
+}
+
+.range-reset {
+    margin-left: 5px;
+    width: 60px;
+}
+
+.switch-wrapper {
+    padding-top: 5px;
+    padding-bottom: 5px;
+    display: inline-block;
+}
+
+.onoffswitch-desc {
+    margin-left: 0px;
+    font-size: 16px;
+    font-family: serif;
+}
+
+.btn-send {
+    width: 311px;
+    margin-top: 10px;
+}
